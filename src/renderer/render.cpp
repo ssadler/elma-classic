@@ -22,6 +22,7 @@
 #include "renderer/canvas.h"
 #include "renderer/object_overlay.h"
 #include "renderer/timer.h"
+#include "renderer/opengl.h"
 #include "util/util.h"
 #include <algorithm>
 #include <cmath>

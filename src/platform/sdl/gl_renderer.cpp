@@ -212,7 +212,7 @@ void gl_update_palette(const void* palette) {
     glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 256, GL_RGBA, GL_UNSIGNED_BYTE, palette);
 }
 
-void gl_present() { glDrawArrays(GL_TRIANGLES, 0, 6); }
+void gl_present() { setup_render_state(); glDrawArrays(GL_TRIANGLES, 0, 6); }
 
 void gl_resize(int width, int height, int pitch) {
     FrameWidth = width;
