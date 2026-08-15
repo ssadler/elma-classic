@@ -21,9 +21,9 @@ static void init() {
         BG->vertex_array_binding_divisor = 1;
 
         BG->set_vertex_shader(R"(
-        #version 450 core
+        #version 410 core
 
-        layout(std140, binding = 1) uniform GlobalData {
+        layout(std140) uniform GlobalData {
             vec4 uFrustum;
             float PixelsToMeters;
             float time;
@@ -54,9 +54,9 @@ static void init() {
         )");
 
         auto vert = std::string(R"(
-        #version 430 core
-        layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
-        layout(std140, binding = 1) uniform GlobalData {
+        #version 410 core
+        layout(std140) uniform Palette { vec4 palette[256]; };
+        layout(std140) uniform GlobalData {
             vec4 uFrustum;
             float PixelsToMeters;
             float time;
@@ -82,6 +82,8 @@ static void init() {
         BG->set_fragment_shader(vert.c_str());
 
         BG->compile();
+        BG->bind_uniform_block(0, "Palette");
+        BG->bind_uniform_block(1, "GlobalData");
 
         float dummy = 0.0;
         BG->buffer_data(1, &dummy, GL_STATIC_DRAW);

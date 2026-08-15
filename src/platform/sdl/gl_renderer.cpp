@@ -16,8 +16,8 @@ void main() {
 )";
 
 static const char* FragmentShaderSource = R"(
-#version 430 core
-layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
+#version 410 core
+layout(std140) uniform Palette { vec4 palette[256]; };
 in vec2 fragTexCoord;
 out vec4 FragColor;
 uniform usampler2D IndexTexture;

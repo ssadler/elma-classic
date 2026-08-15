@@ -98,6 +98,11 @@ class Graphics {
       attribute_pointers.push_back({ vbo, num_vals, GL_INT, AttribType::Int });
     }
 
+    void bind_uniform_block(GLuint idx, const char* name) const {
+        GLuint index = glGetUniformBlockIndex(program, name);
+        glUniformBlockBinding(program, index, idx);
+    }
+
     void buffer_data(int num_verts, const void* ptr, GLenum usage) {
       if (!vao) {
         internal_error("GlManaged::buffer_data: compile first");

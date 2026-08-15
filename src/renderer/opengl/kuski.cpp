@@ -29,14 +29,14 @@ static vect2 StretchAxis = Vect2i;
 
 
 static const char* vert = R"(
-#version 430 core
-  layout(std140, binding = 1) uniform GlobalData {
+#version 410 core
+layout(std140) uniform GlobalData {
     vec4 uFrustum;
     float PixelsToMeters;
-  };
+};
 layout (location = 0) in vec2 pos;
 out vec2 fragTexCoord;
-layout(location = 3) uniform mat3 uTransform;
+uniform mat3 uTransform;
 
 void main() {
   vec3 r = uTransform * vec3(pos, 1.0);
@@ -52,12 +52,12 @@ void main() {
 )";
 
 static const char* frag = R"(
-#version 430 core
-layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
+#version 410 core
+layout(std140) uniform Palette { vec4 palette[256]; };
 in vec2 fragTexCoord;
 out vec4 FragColor;
-layout(location = 4) uniform usampler2D IndexTexture;
-layout(location = 6) uniform uint tColor;
+uniform usampler2D IndexTexture;
+uniform uint tColor;
 
 void main() {
     uint index = texture(IndexTexture, fragTexCoord).r;
@@ -129,6 +129,9 @@ static void init() {
     Painter->set_vertex_shader(vert);
     Painter->add_input_floats(2, false);
     Painter->compile();
+
+    Painter->bind_uniform_block(0, "Palette");
+    Painter->bind_uniform_block(1, "GlobalData");
 
     Painter->uniform1i("IndexTexture", 0);
 

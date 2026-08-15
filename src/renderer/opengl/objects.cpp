@@ -27,8 +27,8 @@ static object_painter* init_painter(std::string name) {
     auto painter = new object_painter{Graphics(std::move(name)), {}};
 
     const char* vert = R"(
-    #version 420 core
-    layout(std140, binding = 1) uniform GlobalData {
+    #version 410 core
+    layout(std140) uniform GlobalData {
         vec4 uFrustum;
         float PixelsToMeters;
         float iTime;
@@ -76,8 +76,8 @@ static object_painter* init_painter(std::string name) {
     )";
 
     const char* frag = R"(
-    #version 430 core
-    layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
+    #version 410 core
+    layout(std140) uniform Palette { vec4 palette[256]; };
     in vec2 fragTexCoord;
     in vec2 uv;
     flat in int gravArrow;
@@ -144,6 +144,8 @@ static object_painter* init_painter(std::string name) {
     gfx->add_input_ints(1);
     gfx->vertex_array_binding_divisor = 1;
     gfx->compile();
+    gfx->bind_uniform_block(0, "Palette");
+    gfx->bind_uniform_block(1, "GlobalData");
 
     return painter;
 }

@@ -30,9 +30,9 @@ static canvas_painter* init_painter() {
     auto gfx = &paint->gfx;
 
     gfx->set_vertex_shader(R"(
-    #version 450 core
+    #version 410 core
 
-    layout(std140, binding = 1) uniform GlobalData {
+    layout(std140) uniform GlobalData {
         vec4 uFrustum;
         float PixelsToMeters;
         float time;
@@ -88,8 +88,8 @@ static canvas_painter* init_painter() {
     )");
 
     auto frag = std::string(R"(
-    #version 430 core
-    layout(std140, binding = 1) uniform GlobalData {
+    #version 410 core
+    layout(std140) uniform GlobalData {
         vec4 uFrustum;
         float PixelsToMeters;
         float time;
@@ -97,7 +97,7 @@ static canvas_painter* init_painter() {
         uint secs;
         uint csecs;
     };
-    layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
+    layout(std140) uniform Palette { vec4 palette[256]; };
 
     in vec2 uv;
 
@@ -123,6 +123,8 @@ static canvas_painter* init_painter() {
     gfx->add_input_ints(3);
     gfx->vertex_array_binding_divisor = 1;
     gfx->compile();
+    gfx->bind_uniform_block(0, "Palette");
+    gfx->bind_uniform_block(1, "GlobalData");
 
 
     return paint;
