@@ -2,18 +2,18 @@
 #include "game/driver.h"
 #include "include/pic/lgr.h"
 #include "include/pic/pic8.h"
+#include "renderer/opengl.h"
+#include "renderer/opengl_gfx.h"
 #include <cstring>
 #include <glad/glad.h>
 #include <cmath>
-#include <vector>
 
-
-static GLuint Program = 0;
-static GLuint VAO;
-static GLuint VBO;
 
 
 #define PI 3.1415926535897932
+
+static Graphics* Painter = nullptr;
+
 static double BikeFrameX;
 static double BikeFrameY;
 static vect2 BikeFrameI;
@@ -28,21 +28,24 @@ static vect2 StretchAxis = Vect2i;
 
 
 
-
 static const char* vert = R"(
 #version 430 core
+  layout(std140, binding = 1) uniform GlobalData {
+    vec4 uFrustum;
+    float PixelsToMeters;
+  };
 layout (location = 0) in vec2 pos;
 out vec2 fragTexCoord;
-layout(location = 2) uniform vec4 uFrustrum;
 layout(location = 3) uniform mat3 uTransform;
 
 void main() {
   vec3 r = uTransform * vec3(pos, 1.0);
 
-  float x = (r.x-uFrustrum.x)/(uFrustrum.z-uFrustrum.x);
-  float y = (r.y-uFrustrum.y)/(uFrustrum.w-uFrustrum.y);
+  float x = (r.x-uFrustum.x)/(uFrustum.z-uFrustum.x);
+  float y = (r.y-uFrustum.y)/(uFrustum.w-uFrustum.y);
 
   gl_Position = vec4(-1.0 + x * 2.0, -1.0 + y * 2.0, 0.0, 1.0);
+
 
   fragTexCoord = pos;
 }
@@ -50,34 +53,19 @@ void main() {
 
 static const char* frag = R"(
 #version 430 core
+layout(std140, binding = 0) uniform Palette { vec4 palette[256]; };
 in vec2 fragTexCoord;
-out uint FragColor;
+out vec4 FragColor;
 layout(location = 4) uniform usampler2D IndexTexture;
 layout(location = 6) uniform uint tColor;
 
 void main() {
     uint index = texture(IndexTexture, fragTexCoord).r;
     if (index == tColor) discard;
-    FragColor = index;
+    FragColor = palette[index];
 }
 )";
 
-
-GLuint upload_pcx8(unsigned char* pixels, int width, int height) {
-  GLuint tex_id;
-  glActiveTexture(GL_TEXTURE2);
-  glGenTextures(1, &tex_id);
-  glBindTexture(GL_TEXTURE_2D, tex_id);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI,
-               width, height, 0,
-               GL_RED_INTEGER, GL_UNSIGNED_BYTE,
-               pixels);
-  return tex_id;
-}
 
 
 struct KuskiTex {
@@ -85,241 +73,78 @@ struct KuskiTex {
   unsigned char transparency;
 };
 
+#define APPLY_TO_BIKE_PARTS(code) \
+    code(bike_part1)              \
+    code(bike_part2)              \
+    code(bike_part3)              \
+    code(bike_part4)              \
+    code(body)                    \
+    code(thigh)                   \
+    code(leg)                     \
+    code(wheel)                   \
+    code(susp1)                   \
+    code(susp2)                   \
+    code(forarm)                  \
+    code(up_arm)                  \
+    code(head)
+
+#define DEFINE_BIKE_PART(name) KuskiTex name;
+#define UPLOAD_BIKE_PART_TEX(name) dest.name = upload_bike_texture(src.name);
+#define FREE_BIKE_PART_TEX(name) glDeleteTextures(1, &dest.name.tex);
+
 struct gl_bike_pics {
-    KuskiTex bike_part1;
-    KuskiTex bike_part2;
-    KuskiTex bike_part3;
-    KuskiTex bike_part4;
-    KuskiTex body;
-    KuskiTex thigh;
-    KuskiTex leg;
-    KuskiTex wheel;
-    KuskiTex susp1;
-    KuskiTex susp2;
-    KuskiTex forarm;
-    KuskiTex up_arm;
-    KuskiTex head;
+    APPLY_TO_BIKE_PARTS(DEFINE_BIKE_PART)
 };
 
+
 gl_bike_pics GlBike1 = {};
+gl_bike_pics GlBike2 = {};
 
-static void init_bike_textures() {
 
-  auto &pics = GlBike1;
+static void init_bike_textures(bike_pics& src, gl_bike_pics& dest) {
 
-  auto tr = Lgr->bike1.wheel->gpixel(0, 0);
+    auto tr = Lgr->bike1.wheel->gpixel(0, 0);
 
-  auto upload_bike_texture = [=](pic8* part) {
-    auto tex = upload_pcx8(part->get_row(0), part->get_width(), part->get_height());
-    return KuskiTex{tex, tr};
-  };
+    auto upload_bike_texture = [=](pic8* part) {
+        auto tex = upload_pic8_texture(part);
+        return KuskiTex{tex, tr};
+    };
 
-  //glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-  pics.bike_part1 = upload_bike_texture(Lgr->bike1.bike_part1);
-  pics.bike_part2 = upload_bike_texture(Lgr->bike1.bike_part2);
-  pics.bike_part3 = upload_bike_texture(Lgr->bike1.bike_part3);
-  pics.bike_part4 = upload_bike_texture(Lgr->bike1.bike_part4);
-  pics.body = upload_bike_texture(Lgr->bike1.body);
-  pics.thigh = upload_bike_texture(Lgr->bike1.thigh);
-  pics.leg = upload_bike_texture(Lgr->bike1.leg);
-  pics.wheel = upload_bike_texture(Lgr->bike1.wheel);
-  pics.susp1 = upload_bike_texture(Lgr->bike1.susp1);
-  pics.susp2 = upload_bike_texture(Lgr->bike1.susp2);
-  pics.forarm = upload_bike_texture(Lgr->bike1.forarm);
-  pics.up_arm = upload_bike_texture(Lgr->bike1.up_arm);
-  pics.head = upload_bike_texture(Lgr->bike1.head);
-  //glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    APPLY_TO_BIKE_PARTS(FREE_BIKE_PART_TEX);
+    APPLY_TO_BIKE_PARTS(UPLOAD_BIKE_PART_TEX);
+}
+
+#undef APPLY_TO_BIKE_PARTS
+#undef DEFINE_BIKE_PART
+#undef UPLOAD_BIKE_PART_TEX
+#undef FREE_BIKE_PART_TEX
+
+
+
+static void init() {
+
+  GL_DEBUG
+    Painter = new Graphics("kuski");
+    Painter->set_fragment_shader(frag);
+    Painter->set_vertex_shader(vert);
+    Painter->add_input_floats(2, false);
+    Painter->compile();
+
+    Painter->uniform1i("IndexTexture", 0);
+
+    float quadUnit[12] = {
+      0, 0, 1, 0, 1, 1,
+      0, 0, 1, 1, 0, 1,
+    };
+
+    Painter->buffer_data(6, &quadUnit, GL_STATIC_DRAW);
+  GL_DEBUG
 }
 
 
 
 
-
-template <typename F>
-std::vector<unsigned char> render_to_texture(F render) {
-
-    static GLuint fbo = 0;
-    static GLuint colorTex = 0;
-
-    if (fbo == 0) {
-      // Create color texture
-      glGenTextures(1, &colorTex);
-      glBindTexture(GL_TEXTURE_2D, colorTex);
-
-      glTexImage2D(
-        GL_TEXTURE_2D, 0, GL_R8UI, 800, 800,
-        0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr
-      );
-
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-      glGenFramebuffers(1, &fbo);
-    }
-
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-
-    GLint prevFbo = 0;
-    GLint prevViewport[4];
-    GLint prevProgram;
-    GLint prevVao;
-
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
-    glGetIntegerv(GL_VIEWPORT, prevViewport);
-    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
-    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
-
-
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-
-
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-    // Attach color texture
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
-
-    // Check completeness
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-      printf("Error generating minimap (framebuffer)");
-    }
-
-    // Render to offscreen framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glViewport(0, 0, 800, 800);
-    glClearColor(1, 0, 1, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-    GLuint clearValue[] = { 155, 0, 0, 0 };
-    glClearBufferuiv(GL_COLOR, 0, clearValue);
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    render();
-    //glDisable(GL_BLEND);
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-    std::vector<unsigned char> pixels(800 * 800);
-
-    // Read pixels from the framebuffer
-    //glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glReadPixels(0, 0, 800, 800, GL_RED_INTEGER, GL_UNSIGNED_BYTE, pixels.data());
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-    // Clean up
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBindFramebuffer(GL_FRAMEBUFFER, prevFbo);
-    glBindVertexArray(prevVao);
-    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
-    glActiveTexture(GL_TEXTURE0);
-    glUseProgram(prevProgram);
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-    return pixels;
-}
-
-
-GLuint compile_program(const char* vert, const char* frag);
-void render_bike(gl_bike_pics& texs, const motorst* mot, const bike_metadata* metadata);
-
-
-void gl_render_kuski(
-    bool player1, pic8* pic, double time, vect2 bottomleft_corner,
-    const motorst* mot, const bike_metadata* metadata,
-    const pic8* shirt
-) {
-  float frustrum[4];
-  printf("%lf %lf\n", bottomleft_corner.x, bottomleft_corner.y);
-
-    frustrum[0] = -12.447917;
-    frustrum[1] = -5.0729165;
-    frustrum[2] = 7.5104165;
-    frustrum[3] = 6.8958335;
-  //frustrum[0] = bottomleft_corner.x;
-  //frustrum[1] = bottomleft_corner.y;
-
-  //frustrum[2] = frustrum[0] + 1200.0 / 48.0;
-  //frustrum[3] = frustrum[1] + 1200.0 / 48.0;
-
-
-  if (GlBike1.bike_part1.tex == 0) {
-      init_bike_textures();
-  }
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-  if (Program == 0) {
-
-      Program = compile_program(vert, frag);
-
-      VAO = 0;
-      VBO = 0;
-      glGenVertexArrays(1, &VAO);
-      glGenBuffers(1, &VBO);
-      glBindVertexArray(VAO);
-      glBindBuffer(GL_ARRAY_BUFFER, VBO);
-
-      glVertexArrayVertexBuffer(VAO, 0, VBO, 0, 8);
-      glEnableVertexArrayAttrib(VAO, 0);
-      glVertexArrayAttribFormat(VAO, 0, 2, GL_FLOAT, false, 0);
-      glVertexArrayAttribBinding(VAO, 0, 0);
-
-      float quadUnit[12] = {
-        0, 0, 1, 0, 1, 1,
-        0, 0, 1, 1, 0, 1,
-      };
-
-      glBufferData(GL_ARRAY_BUFFER, 12 * 4, &quadUnit, GL_STATIC_DRAW);
-  }
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-  auto pixels = render_to_texture([&] {
-      glUseProgram(Program);
-      glUniform1i(glGetUniformLocation(Program, "IndexTexture"), 2);
-      glUniform4f(glGetUniformLocation(Program, "uFrustrum"), frustrum[0], frustrum[1], frustrum[2], frustrum[3]);
-      glBindVertexArray(VAO);
-      render_bike(GlBike1, mot, metadata);
-  });
-
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-
-  for (int i=0; i<800; i++) {
-    memcpy(pic->get_row(i), pixels.data() + i * 800, 800);
-  }
-}
-
-
-//GlLifecycle Kuski = {
-//  .on_init = &gl_init_kuski,
-//  .on_lgr = []{
-//    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-//    TexHead   = Lgr2->gl_texture("q1head");
-//    TexBody   = Lgr2->gl_texture("q1body");
-//    TexUparm  = Lgr2->gl_texture("q1up_arm");
-//    TexForarm = Lgr2->gl_texture("q1forarm");
-//    TexLeg    = Lgr2->gl_texture("q1leg");
-//    TexThigh  = Lgr2->gl_texture("q1thigh");
-//    TexSusp1  = Lgr2->gl_texture("q1susp1");
-//    TexSusp2  = Lgr2->gl_texture("q1susp2");
-//    TexWheel  = Lgr2->gl_texture("q1wheel");
-//    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-//    TexPart1  = Lgr2->gl_texture("q1bike_part1");
-//    TexPart2  = Lgr2->gl_texture("q1bike_part2");
-//    TexPart3  = Lgr2->gl_texture("q1bike_part3");
-//    TexPart4  = Lgr2->gl_texture("q1bike_part4");
-//    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-//  }
-//};
-
-
-static void render_part(vect2 u, vect2 v, vect2 r, int part_id=0) {
-
+static void render_part(vect2 u, vect2 v, vect2 r) {
 
   if (StretchEnabled) {
     // Stretch coordinate r
@@ -343,15 +168,12 @@ static void render_part(vect2 u, vect2 v, vect2 r, int part_id=0) {
     float(v.x), float(v.y), 0.0f,
     float(r.x), float(r.y), 1.0f
   };
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-  glUniformMatrix3fv(glGetUniformLocation(Program, "uTransform"), 1, false, mat3);
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
 
-  // It's fast to draw for each part because static buffer
-  // In theory it could be one draw call with many textures and an array of mat3s but
-  // prob not even worth it
-  glDrawArrays(GL_TRIANGLES, 0, 6);
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
+  GL_DEBUG
+  Painter->uniform_matrix_3fv("uTransform", 1, false, mat3);
+  GL_DEBUG
+  Painter->draw();
+  GL_DEBUG
 }
 
 static void render_frame_part(KuskiTex tex, bike_box* box) {
@@ -361,9 +183,11 @@ static void render_frame_part(KuskiTex tex, bike_box* box) {
   vect2 r = BikeFrameI * (box->x1 + 260 - BikeFrameX) +
             BikeFrameJ * (BikeFrameY - (box->y1 + 260)) + BikeFrameR;
 
+  GL_DEBUG
   glBindTexture(GL_TEXTURE_2D, tex.tex);
-  auto loc = glGetUniformLocation(Program, "tColor");
-  glUniform1ui(loc, tex.transparency);
+  GL_DEBUG
+  Painter->uniform1ui("tColor", tex.transparency);
+  GL_DEBUG
   render_part(u, v, r);
 }
 
@@ -375,8 +199,7 @@ static void render_frame_part(KuskiTex tex, bike_box* box) {
 // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
 // height represents the vertical length of the affine_pic (thickness of the limb)
 static void render_body_part(KuskiTex tex, vect2 a, vect2 b, double height,
-                              double a_stretch, double b_stretch, bool flip,
-                              int part_id=0) {
+                              double a_stretch, double b_stretch, bool flip) {
 
   vect2 i = unit_vector(b - a);
   b = b + i * b_stretch;
@@ -388,16 +211,19 @@ static void render_body_part(KuskiTex tex, vect2 a, vect2 b, double height,
 
   v = v * 2.0f; // Migrating to OpenGL, body parts need this for some reason
 
+  GL_DEBUG
   glBindTexture(GL_TEXTURE_2D, tex.tex);
-  glUniform1ui(glGetUniformLocation(Program, "tColor"), tex.transparency);
-  render_part(u, v, r, part_id);
+  GL_DEBUG
+  Painter->uniform1ui("tColor", tex.transparency);
+  GL_DEBUG
+  render_part(u, v, r);
+  GL_DEBUG
 }
 
-static void render_rigid_part(KuskiTex tex, vect2 r, double radius, double rotation, bool flip,
-    int part_id=0) {
+static void render_rigid_part(KuskiTex tex, vect2 r, double radius, double rotation, bool flip) {
   float rad = flip ? -radius : radius;
   vect2 direction(cos(rotation) * rad, sin(rotation) * rad);
-  render_body_part(tex, r - direction, r + direction, radius, 0.0, 0.0, flip, part_id);
+  render_body_part(tex, r - direction, r + direction, radius, 0.0, 0.0, flip);
 }
 
 uint64_t xorshift(const uint64_t n,int i){
@@ -412,9 +238,10 @@ uint64_t hash(const uint64_t n){
 
 void render_bike(gl_bike_pics& texs, const motorst* mot, const bike_metadata* metadata) {
 
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
-  // all subsequent tex will be texture2
-  glActiveTexture(GL_TEXTURE2);
+  GL_DEBUG
+  // all subsequent tex will be texture
+  glActiveTexture(GL_TEXTURE0);
+  GL_DEBUG
 
   double arm_position = metadata->arm_position;
   double turn_phase = metadata->bike_turning.turn_phase;
@@ -445,20 +272,18 @@ void render_bike(gl_bike_pics& texs, const motorst* mot, const bike_metadata* me
       }
   }
 
-  auto flipped = mot->flipped_bike;
-
   // Render background wheels
   if (left_wheel_in_back) {
     render_rigid_part(texs.wheel, left_wheel_r, mot->left_wheel.radius-.005, mot->left_wheel.rotation,
-                     false, 10 ^ flipped);
+                     false);
   }
   if (right_wheel_in_back) {
     render_rigid_part(texs.wheel, right_wheel_r, mot->right_wheel.radius-.005, mot->right_wheel.rotation,
-                     false, 11 ^ flipped);
+                     false);
   }
 
 
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
+  GL_DEBUG
 
 
 
@@ -595,13 +420,18 @@ void render_bike(gl_bike_pics& texs, const motorst* mot, const bike_metadata* me
 
   // Render body
   render_body_part(texs.thigh, knee_r, hip_r, 0.14, 0.03, 0.1, mot->flipped_bike);
+  GL_DEBUG
   render_body_part(texs.leg, foot_r, knee_r, 0.21, 0.03, 0.03, mot->flipped_bike);
+  GL_DEBUG
   const KuskiTex body = texs.body; // shirt ? shirt : bike->body;
   render_body_part(body, hip_r, neck_r, 0.2, 0.1, 0.05, mot->flipped_bike);
+  GL_DEBUG
   render_body_part(texs.up_arm, elbow_r, shoulder_r, 0.11, 0.08, 0.1, !mot->flipped_bike);
+  GL_DEBUG
   render_body_part(texs.forarm, hand_r, elbow_r, 0.076, 0.08, 0.1, mot->flipped_bike);
 
 
+  GL_DEBUG
 
   // Render front wheels
   StretchEnabled = false;
@@ -613,20 +443,18 @@ void render_bike(gl_bike_pics& texs, const motorst* mot, const bike_metadata* me
     }
     if (!left_wheel_in_back) {
       render_rigid_part(
-        texs.wheel, left_wheel_r, mot->left_wheel.radius, mot->left_wheel.rotation, false, 10 ^ flipped
+        texs.wheel, left_wheel_r, mot->left_wheel.radius, mot->left_wheel.rotation, false
       );
     }
     if (!right_wheel_in_back) {
       render_rigid_part(
-        texs.wheel, right_wheel_r, mot->right_wheel.radius, mot->right_wheel.rotation, false, 11 ^ flipped
+        texs.wheel, right_wheel_r, mot->right_wheel.radius, mot->right_wheel.rotation, false
       );
     }
   }
 
-  { auto err = glGetError(); if (err != 0) { printf("gl error %i @ %i\n", err, __LINE__); } }
+  GL_DEBUG
 }
-
-
 
 
 
@@ -686,3 +514,18 @@ GLuint compile_program(const char* vert, const char* frag) {
 
   return ShaderProgram;
 }
+
+
+
+
+GlLifecycle<driver&> Kuski = {
+    .init = init,
+    .on_lgr = [] {
+        init_bike_textures(Lgr->bike1, GlBike1);
+        init_bike_textures(Lgr->bike2, GlBike2);
+    },
+    .render = [](driver& driv1) {
+        render_bike(GlBike1, driv1.mot, &driv1.meta);
+    }
+};
+

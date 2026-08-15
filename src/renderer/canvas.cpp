@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <tuple>
 
 canvas* CanvasBack = nullptr;
 canvas* CanvasFront = nullptr;
@@ -1636,6 +1637,7 @@ void canvas::create_canvases() {
     CanvasMinimap->calculate_object_positions();
 
     END_TIME(canvas_timer, std::format("Canvases"));
+
 }
 
 node_finder::node_finder(canvas* src) {
@@ -1677,4 +1679,112 @@ canvas_chunk_node* node_finder::get_chunk(int x, int y) {
 bool canvas::bike_out_of_bounds(vect2 pos) {
     vect2 relative_pos = pos - origin;
     return relative_pos.x < OUT_OF_BOUNDS_LEFT || relative_pos.y < OUT_OF_BOUNDS_BOTTOM;
+}
+
+
+std::vector<canvas::canvas_export_span> canvas::export_spans() {
+
+    std::vector<canvas_export_span> spans;
+    auto n_rows = rows.size();
+    printf("n rows %li\n", n_rows);
+
+    auto get_pic_ptr_offset = [](long ptr, pic8* pic) -> std::array<int, 2> {
+                int w = pic->get_row(1) - pic->get_row(0);
+                auto h = pic->get_height();
+                long off = ptr - (long) pic->get_row(0);
+                if (off >= 0 && off < w * h) {
+                    return {(int) off, w};
+                }
+                return {-1, -1};
+    };
+
+    auto add_span = [&](int x, int y, canvas_chunk* span) {
+        if (span->pixels == canvas_pixels::default_foreground()) {
+                //printf("fore  %i:%i   %i\n", x, y, span->width);
+            //spans.emplace_back(x, y, span->width, 0, 0, -1);
+        } else if (span->pixels == canvas_pixels::default_background()) {
+                //printf("back  %i:%i   %i\n", x, y, span->width);
+            spans.emplace_back(x, y, span->width, 0, 0, -2);
+        } else if (span->pixels.is_pointer()) {
+
+            auto p = (long) span->pixels.to_pointer();
+
+            for (int i=0; i<Lgr->grass_pics->elements.size(); i++) {
+                auto& t = Lgr->grass_pics->elements[i];
+                //auto w = t.pic->get_width();
+                //int w = t.pic->get_row(1) - t.pic->get_row(0);
+                //auto h = t.pic->get_height();
+                //long off = p - (long) t.pic->get_row(0);
+
+                auto [off, w] = get_pic_ptr_offset(p, t.pic.get());
+
+                if (off != -1) { // off >= 0 && off < w * h) {
+                    auto tex_id = i + 0x100000;
+                    spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
+                    return;
+                }
+            }
+
+            for (int i=0; i<Lgr->texture_count; i++) {
+                auto& t = Lgr->textures[i];
+                //auto w = t.pic->get_width();
+                //int w = t.pic->get_row(1) - t.pic->get_row(0);
+                //auto h = t.pic->get_height();
+                //long off = p - (long) t.pic->get_row(0);
+                //if (off >= 0 && off < w * h) {
+                auto [off, w] = get_pic_ptr_offset(p, t.pic);
+                if (off != -1) {
+                    spans.emplace_back(x, y, span->width, off % w, off / w, i);
+                    return;
+                }
+            }
+
+            for (int i=0; i<Lgr->picture_count; i++) {
+                auto& t = Lgr->pictures[i];
+                long off = p - (long) t.data;
+                if (off >= 0 && off < t.data_len) {
+                    spans.emplace_back(x, y, span->width, off, -1, i + 0x10000);
+                    return;
+                }
+            }
+
+            auto [off, w] = get_pic_ptr_offset(p, Lgr->background);
+            if (off != -1) {
+                printf("its background\n");
+                return;
+
+            }
+
+            printf("tex not found\n");
+        }
+    };
+
+    for (int i=0; i<n_rows; i++) {
+        int y = i;
+
+        auto span = rows[i];
+        auto is_last_row = i+1 == n_rows;
+        auto x = 0;
+
+        while (true) {
+
+            if (span->width < 10000 || true) {
+                add_span(x, y, span);
+            }
+
+
+            x += span->width;
+            span++;
+
+            if (is_last_row && x == RIGHTMOST_CHUNK_WIDTH) {
+                break;
+            }
+            if (!is_last_row && span == rows[i+1]) {
+                break;
+            }
+        }
+    }
+
+    printf("canvas spans %li\n", spans.size());
+    return spans;
 }

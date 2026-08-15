@@ -24,7 +24,7 @@ uniform usampler2D IndexTexture;
 
 void main() {
     uint index = texture(IndexTexture, fragTexCoord).r;
-    FragColor = palette[index];
+    FragColor = vec4(float(index)); // palette[index];
 }
 )";
 
@@ -90,13 +90,12 @@ static int init_shaders() {
 static void setup_textures(int width, int height) {
     // Create index texture (R8)
     glGenTextures(1, &IndexTexture);
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, IndexTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI, width, height, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 
     // Create palette buffer
     glGenBuffers(1, &PaletteVBO);
@@ -190,7 +189,7 @@ void gl_upload_frame(const unsigned char* indices, int pitch) {
 
     glActiveTexture(GL_TEXTURE0);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, FrameWidth, FrameHeight, GL_RED_INTEGER, GL_UNSIGNED_BYTE,
+    glTexSubImage2D(GL_TEXTURE_2D, 0, GL_R8UI, 0, FrameWidth, FrameHeight, GL_RED, GL_UNSIGNED_BYTE,
                     nullptr);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -198,14 +197,8 @@ void gl_upload_frame(const unsigned char* indices, int pitch) {
 }
 
 void gl_update_palette(const void* palette) {
-
-    float colors[256*4];
-    for (int i=0; i<256*4; i++) {
-        colors[i] = float(((const unsigned char*)palette)[i]) / 255.0;
-    }
-
     glBindBuffer(GL_UNIFORM_BUFFER, PaletteVBO);
-    glBufferData(GL_UNIFORM_BUFFER, 256*4*4, colors, GL_STATIC_DRAW);
+    glBufferData(GL_UNIFORM_BUFFER, 256*4, palette, GL_STATIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, PaletteVBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
@@ -220,7 +213,7 @@ void gl_resize(int width, int height, int pitch) {
     // Resize index texture
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, IndexTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI, width, height, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8UI, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 
     // Resize PBO
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, PBO);

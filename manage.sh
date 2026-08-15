@@ -8,6 +8,10 @@ function dev () {
   ./elma
   #valgrind --tool=callgrind node ts/test.js                          
 }                                                                     
+function debug () {                                                     
+  cd build
+  gdb elma
+}                                                                     
                                                                       
                                                                       
                                                                       

@@ -16,7 +16,7 @@
 #include <filesystem>
 #include <format>
 
-static SDL_Window* SDLWindow = nullptr;
+SDL_Window* SDLWindow = nullptr;
 static SDL_Surface* SDLSurfaceMain = nullptr;
 static SDL_Surface* SDLSurfacePaletted = nullptr;
 static palette* CurrentPalette = nullptr;

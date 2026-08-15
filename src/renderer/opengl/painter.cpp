@@ -2,22 +2,13 @@
 #include "main.h"
 
 #include <cstring>
-#include <exception>
-#include <format>
 #include <string>
-#include <atomic>
-#include <filesystem>
-#include <iostream>
-#include <thread>
-#include <fstream>
-#include <sstream>
 #include <regex>
 #include <string_view>
 #include <string>
 
 #include "renderer/opengl.h"
-
-using namespace std::chrono_literals;
+#include "renderer/opengl_gfx.h"
 
 
 
@@ -119,35 +110,15 @@ void Graphics::_compile_vao() {
 
 void Graphics::init_draw() {
 
-  bool replaced = false;
-
-  if (dirty != nullptr && dirty->exchange(false)) {
-    auto p = _compile_shader();
-    if (p <= 0) {
-      printf("error recompiling program\n");
-    } else {
-      glUseProgram(p);
-      auto old = program;
-      program = p;
-      glDeleteProgram(old);
-      replaced = true;
-    }
-  }
-
   glUseProgram(program);
 
   for (auto& cb : draw_cbs) { cb(); }
-  for (auto& [name, cb] : persistant_uniforms) { cb(loc(name)); }
   for (auto [slot, texture] : textures) {
     glUniform1i(loc(texture.name), slot);
     glBindTextureUnit(slot, texture.texture);
   }
 
   glBindVertexArray(vao);
-
-  if (replaced) {
-    //auto e = glGetError(); if (e != 0) { printf("%s:%i  e=%i\n", __FILE__, __LINE__, e); exit(1); }
-  }
 }
 
 
@@ -155,125 +126,33 @@ void Graphics::init_draw() {
 
 
 void Graphics::uniform1i(const char* name, int value) const {
-  glProgramUniform1i(program, glGetUniformLocation(program, name), value);
+    glProgramUniform1i(program, glGetUniformLocation(program, name), value);
 }
 void Graphics::uniform1ui(const char* name, int value) const {
-  glProgramUniform1ui(program, glGetUniformLocation(program, name), value);
+    glProgramUniform1ui(program, glGetUniformLocation(program, name), value);
 }
 void Graphics::uniform1f(const char* name, float value) const {
-  glProgramUniform1f(program, glGetUniformLocation(program, name), value);
+    glProgramUniform1f(program, glGetUniformLocation(program, name), value);
 }
 void Graphics::uniform2f(const char* name, float val0, float val1) const {
-  glProgramUniform2f(program, glGetUniformLocation(program, name), val0, val1);
+    glProgramUniform2f(program, glGetUniformLocation(program, name), val0, val1);
 }
 void Graphics::uniform3f(const char* name, float val0, float val1, float val2) const {
-  glProgramUniform3f(program, glGetUniformLocation(program, name), val0, val1, val2);
+    glProgramUniform3f(program, glGetUniformLocation(program, name), val0, val1, val2);
 }
 void Graphics::uniform4f(const char* name, float val0, float val1, float val2, float val3) const {
-  glProgramUniform4f(program, glGetUniformLocation(program, name), val0, val1, val2, val3);
+    glProgramUniform4f(program, glGetUniformLocation(program, name), val0, val1, val2, val3);
 }
 void Graphics::uniform4f(const char* name, float vals[4]) const {
-  glProgramUniform4f(program, glGetUniformLocation(program, name), vals[0], vals[1], vals[2], vals[3]);
+    glProgramUniform4f(program, glGetUniformLocation(program, name), vals[0], vals[1], vals[2], vals[3]);
 }
 void Graphics::uniform2fv(const char* name, size_t count, const float* data) const {
-  glProgramUniform2fv(program, glGetUniformLocation(program, name), count, data);
+    glProgramUniform2fv(program, glGetUniformLocation(program, name), count, data);
 }
 
-void Graphics::persist_uniform1i(const char* name, int value) {
-  persist_uniform(name, [=](GLuint idx) { glUniform1i(idx, value); });
-}
-void Graphics::persist_uniform1f(const char* name, float value) {
-  persist_uniform(name, [=](GLuint idx) { glUniform1f(idx, value); });
-}
-void Graphics::persist_uniform2f(const char* name, float val0, float val1) {
-  persist_uniform(name, [=](GLuint idx) { glUniform2f(idx, val0, val1); });
-}
-void Graphics::persist_uniform2f(const char* name, vect2 vals){
-  persist_uniform2f(name, vals.x, vals.y);
-}
-void Graphics::persist_uniform3f(const char* name, float val0, float val1, float val2) {
-  persist_uniform(name, [=](GLuint idx) { glUniform3f(idx, val0, val1, val2); });
-}
-void Graphics::persist_uniform4f(const char* name, float val0, float val1, float val2, float val3) {
-  persist_uniform(name, [=](GLuint idx) { glUniform4f(idx, val0, val1, val2, val3); });
-}
-void Graphics::persist_uniform4f(const char* name, float vals[4]) {
-  persist_uniform(name, [=](GLuint idx) { glUniform4f(idx, vals[0], vals[1], vals[2], vals[3]); });
-}
-
-
-
-
-
-
-void Graphics::watch_file_shaders() {
-  watch_file_shaders(name);
-}
-
-
-void Graphics::watch_file_shaders(std::string shadername) {
-
-  if (!file_shader_name.empty()) {
-    external_error("watch_file_shaders: shader name already set");
-  }
-
-  file_shader_name = shadername;
-
-  auto shaders_dir = std::getenv("ELMA_SHADERS_DIR");
-
-  if (shaders_dir == nullptr || shaders_dir[0] == '\0') {
-    return;
-  }
-
-  auto watch_shader = [&](const char* type, std::string* target) {
-
-    auto fname = std::format("{}.{}.glsl", shadername, type);
-    auto path = std::format("{}/{}", shaders_dir, fname);
-
-    if (!std::filesystem::exists(path)) {
-      std::ofstream f(path);
-      f << *target;
-      f.close();
-      printf("wrote shader: %s\n", path.c_str());
-    }
-
-    return [path, target, this, fname](std::stop_token stopToken) { // NOLINT
-
-      printf("watching shader: %s\n", fname.c_str());
-
-      std::filesystem::file_time_type last_write;
-
-      while (!stopToken.stop_requested()) {
-        try {
-          auto current = std::filesystem::last_write_time(path);
-
-          if (current != last_write) {
-
-            std::ifstream f(path);
-            std::ostringstream ss;
-            ss << f.rdbuf();
-            f.close();
-            *target = ss.str();
-
-            last_write = current;
-            dirty->store(true, std::memory_order_release);
-            printf("updated shader %s\n", fname.c_str());
-          }
-        } catch (std::exception& e) {
-          printf("Error polling shader %s: %s\n", fname.c_str(), e.what());
-          std::this_thread::sleep_for(20000ms);
-        }
-
-        std::this_thread::sleep_for(200ms);
-      }
-
-      printf("shader watcher exited: %s\n", fname.c_str());
-
-    };
-  };
-
-  vert_watcher = std::make_shared<std::jthread>(watch_shader("vert", &vert));
-  frag_watcher = std::make_shared<std::jthread>(watch_shader("frag", &frag));
+void Graphics::uniform_matrix_3fv(const char* name, size_t count, bool normalize, const float* data) const {
+    auto loc = glGetUniformLocation(program, name);
+    glProgramUniformMatrix3fv(program, loc, count, normalize, data);
 }
 
 

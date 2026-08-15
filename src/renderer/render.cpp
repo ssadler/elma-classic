@@ -872,6 +872,9 @@ static void render_view(bool player1, bool bottom_player, pic8* pic, double time
 
 void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
     fps::count_fps();
+    
+    return gl_render_game(time, driv1, current_camera, loop);
+
 
     // Determine who we are going to draw (player 1, player 2 or both)
     bool draw_player1 = driv1.draw_view;

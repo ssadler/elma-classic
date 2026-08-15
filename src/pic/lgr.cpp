@@ -26,7 +26,6 @@
 constexpr int MAGIC_NUMBER = 187565543;
 
 lgrfile* Lgr = nullptr;
-static char CurrentLgrName[30] = "";
 
 bike_box BikeBox1 = {3, 36, 147, 184};
 bike_box BikeBox2 = {32, 183, 147, 297};
@@ -314,6 +313,7 @@ void lgrfile::add_picture(pic8* pic, piclist* list, int index) {
     // Set picture properties
     picture* new_pic = &pictures[picture_count];
     strcpy(new_pic->name, list->name[index]);
+    printf("ADD PICTURE %s\n", new_pic->name);
     new_pic->default_distance = list->default_distance[index];
     new_pic->default_clipping = list->default_clipping[index];
     new_pic->width = pic->get_width();
@@ -359,6 +359,7 @@ void lgrfile::add_picture(pic8* pic, piclist* list, int index) {
         internal_error("Not enough memory!");
     }
     std::copy(PictureBuffer.begin(), PictureBuffer.end(), new_pic->data);
+    new_pic->data_len = PictureBuffer.size();
 
     picture_count++;
 }

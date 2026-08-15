@@ -220,6 +220,14 @@ class canvas {
     bool bike_out_of_bounds(vect2 pos);
     // Generate all 3 canvasses required to render a level
     static void create_canvases();
+
+    // Export spans for gpu renderer
+    struct canvas_export_span {
+      int x, y, width;
+      int pic_x, pic_y, pic_id;
+    };
+    std::vector<canvas_export_span> export_spans();
+    vect2 get_origin() { return origin; }
 };
 
 extern canvas* CanvasBack;

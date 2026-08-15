@@ -37,6 +37,7 @@ struct picture {
     //   Raw pixel data, (skipped if end of row)
     //  }
     unsigned char* data;
+    size_t data_len;
 };
 
 struct texture {
@@ -141,6 +142,7 @@ class lgrfile {
 };
 
 extern lgrfile* Lgr;
+inline char CurrentLgrName[30] = "";
 void invalidate_lgr_cache();
 
 void create_grass_mask(mask& msk, int* heightmap, int skip_rows);

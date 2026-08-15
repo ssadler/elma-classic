@@ -46,11 +46,15 @@ void init_gravity_arrows() {
     }
 }
 
-void draw_gravity_arrow(pic8* pic, int obj_i, int obj_j, object::Property property) {
+pic8* get_gravity_arrow(object::Property property) {
     if (property < object::Property::GravityUp || property > object::Property::GravityRight) {
         internal_error("unknown property in draw_gravity_arrow()!");
     }
-    pic8* arrow = GravityArrows[(int)property - 1];
+    return GravityArrows[(int)property - 1];
+}
+
+void draw_gravity_arrow(pic8* pic, int obj_i, int obj_j, object::Property property) {
+    pic8* arrow = get_gravity_arrow(property);
     if (!arrow) {
         return;
     }
