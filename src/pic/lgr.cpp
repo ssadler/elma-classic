@@ -313,7 +313,6 @@ void lgrfile::add_picture(pic8* pic, piclist* list, int index) {
     // Set picture properties
     picture* new_pic = &pictures[picture_count];
     strcpy(new_pic->name, list->name[index]);
-    printf("ADD PICTURE %s\n", new_pic->name);
     new_pic->default_distance = list->default_distance[index];
     new_pic->default_clipping = list->default_clipping[index];
     new_pic->width = pic->get_width();

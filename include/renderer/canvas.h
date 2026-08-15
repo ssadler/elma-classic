@@ -45,15 +45,17 @@ class canvas_pixels {
             internal_error("canvas_pixels invalid texture constructor");
         }
 #endif
+        texture.tex_id = texture_index;
         return texture;
     }
 
-    static canvas_pixels pointer(unsigned char* ptr) {
+    static canvas_pixels pointer(unsigned char* ptr, int tex_id) {
         canvas_pixels pointer(reinterpret_cast<uintptr_t>(ptr));
 #ifdef DEBUG
         if (!pointer.is_pointer()) {
             internal_error("canvas_pixels invalid pointer constructor");
         }
+        pointer.tex_id = tex_id;
 #endif
         return pointer;
     }
@@ -92,6 +94,13 @@ class canvas_pixels {
         return *this;
     }
 
+    int texture_id() const {
+        return tex_id;
+    }
+    void set_texture_id(int texture_id) {
+        tex_id = texture_id;
+    }
+
   private:
     constexpr explicit canvas_pixels(uintptr_t v) noexcept
         : value(v) {}
@@ -103,6 +112,7 @@ class canvas_pixels {
     static_assert(TEXTURE_END < POINTER_START);
 
     uintptr_t value;
+    int tex_id = -1;
 };
 
 // Horizontal segment of pixels sharing the same source of pixel data, chained
@@ -194,7 +204,7 @@ class canvas {
 
     // Draw grass
     void draw_qgrass_texture(updown& qupdown, int x, int y, int qgrass_margin);
-    void draw_qupdown(updown& qupdown, int x, int y, int qupdown_margin, int qgrass_margin);
+    void draw_qupdown(updown& qupdown, int qupdown_id, int x, int y, int qupdown_margin, int qgrass_margin);
     void draw_grass_polygon(grass* gr, int* heightmap, int heightmap_length, int x0,
                             int qupdown_margin, int qgrass_margin);
     void draw_grass_polygons();

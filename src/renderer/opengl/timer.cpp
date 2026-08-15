@@ -43,7 +43,6 @@ void set_timer_shader_digits(shader_globals& globals, float time) {
     globals.mins = TimerDigitMasks[t % 10] << 7;
     t /= 10;
     globals.mins += TimerDigitMasks[t % 10];
-
 }
 
 
@@ -136,12 +135,14 @@ void drawDigit(vec2 refPos, uint mask) {
 void drawTimer() {
     vec2 refPos = vec2(1700.0, 1050.0) - gl_FragCoord.xy;
 
+    // Skip if not in bounding box
+
     float d = sdBox(refPos, vec2(140.0, 60.0));
     if (d > 0.0) return;
     //FragColor += vec4(0.1, 0.1, 0.1, 0.0); // show area
 
 
-    // Draw top bars
+    // Draw timer
 
     drawDigit(refPos + vec2(-110.0, 0.0), mins & 127);
     drawDigit(refPos + vec2(-74.0, 0.0), mins >> 7);

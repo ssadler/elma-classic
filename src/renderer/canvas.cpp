@@ -371,7 +371,7 @@ void canvas::textures_to_pointers() {
 
                     cur_node->width = node_width;
                     cur_node->pixels = canvas_pixels::pointer(pic->get_row(y % pic->get_height()) +
-                                                              texture_x_offset);
+                                                              texture_x_offset, texture_index);
                     if (!cur_node->pixels.is_pointer()) {
                         external_error("textures_to_pointers pointer has invalid memory address!");
                     }
@@ -766,7 +766,7 @@ void canvas::draw_sprites(Clipping clipping) {
         }
 
         unsigned char* pixeldata = pict->data;
-        if (!canvas_pixels::pointer(pixeldata).is_pointer()) {
+        if (!canvas_pixels::pointer(pixeldata, 0).is_pointer()) {
             external_error("draw_sprites pointer has invalid memory address!");
         }
 
@@ -784,7 +784,8 @@ void canvas::draw_sprites(Clipping clipping) {
                 int count = read_varint(pixeldata, offset);
                 // Check out of range pictures (y position)
                 if (y - i >= 0 && y - i < pixel_height) {
-                    draw_pixels(canvas_pixels::pointer(&pixeldata[offset]), distance, x + j,
+                    auto pixels = canvas_pixels::pointer(&pixeldata[offset], 0x10000 | picture_index);
+                    draw_pixels(pixels, distance, x + j,
                                 x + j + count - 1, y - i, clipping);
                 }
                 j += count;
@@ -865,7 +866,7 @@ void canvas::draw_qgrass_texture(updown& qupdown, int x, int y, int qgrass_margi
     }
 }
 
-void canvas::draw_qupdown(updown& qupdown, int x, int y, int qupdown_margin, int qgrass_margin) {
+void canvas::draw_qupdown(updown& qupdown, int qupdown_id, int x, int y, int qupdown_margin, int qgrass_margin) {
     int distance = GRASS_DISTANCE;
 
     // Grab the QUP/QDOWN image
@@ -901,8 +902,8 @@ void canvas::draw_qupdown(updown& qupdown, int x, int y, int qupdown_margin, int
             if (count <= 0) {
                 internal_error("draw_qupdown count <= 0");
             }
-            draw_pixels(canvas_pixels::pointer(&sor[j]), distance, x + j, x + j + count - 1, y + i,
-                        Clipping::Ground);
+            auto pixels = canvas_pixels::pointer(&sor[j], qupdown_id | 0x100000);
+            draw_pixels(pixels, distance, x + j, x + j + count - 1, y + i, Clipping::Ground);
             j += count;
         }
     }
@@ -926,8 +927,11 @@ void canvas::draw_grass_polygon(grass* gr, int* heightmap, int heightmap_length,
         // Let's pick the best matching QUP/QDOWN
         int best_score = INT_MAX;
         updown* best_qupdown = nullptr;
+        int best_qupdown_id = -1;
         int best_slope = 0;
-        for (updown& qupdown : gr->elements) {
+        for (int i=0; i<gr->elements.size(); i++) {
+            auto& qupdown = gr->elements[i];
+        //for (updown& qupdown : gr->elements) {
             // Check each image and choose the one with the smallest y-offset from desired
             // height
             int target_x = x + qupdown.pic->get_width();
@@ -942,6 +946,7 @@ void canvas::draw_grass_polygon(grass* gr, int* heightmap, int heightmap_length,
             if (score < best_score) {
                 best_score = score;
                 best_qupdown = &qupdown;
+                best_qupdown_id = i;
                 best_slope = qupdown.slope;
             }
         }
@@ -951,7 +956,7 @@ void canvas::draw_grass_polygon(grass* gr, int* heightmap, int heightmap_length,
             internal_error("draw_grass_polygon no qupdown identified!");
         }
 
-        draw_qupdown(*best_qupdown, x, y, qupdown_margin, qgrass_margin);
+        draw_qupdown(*best_qupdown, best_qupdown_id, x, y, qupdown_margin, qgrass_margin);
         x += best_qupdown->pic->get_width();
         y += best_slope;
     }
@@ -1023,7 +1028,7 @@ void canvas::draw_killers() {
             int distance = 499;
             int x = (int)((obj->r.x - origin.x) * MetersToMinimapPixels);
             int y = (int)((-obj->r.y - origin.y) * MetersToMinimapPixels);
-            canvas_pixels source_pixels = canvas_pixels::pointer(source);
+            canvas_pixels source_pixels = canvas_pixels::pointer(source, -5);
             draw_pixels(source_pixels, distance, x - 1, x + 1, y - 1, Clipping::Unclipped);
             draw_pixels(source_pixels, distance, x - 1, x - 1, y, Clipping::Unclipped);
             draw_pixels(source_pixels, distance, x + 1, x + 1, y, Clipping::Unclipped);
@@ -1699,54 +1704,91 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
     };
 
     auto add_span = [&](int x, int y, canvas_chunk* span) {
+
+
         if (span->pixels == canvas_pixels::default_foreground()) {
                 //printf("fore  %i:%i   %i\n", x, y, span->width);
             //spans.emplace_back(x, y, span->width, 0, 0, -1);
         } else if (span->pixels == canvas_pixels::default_background()) {
                 //printf("back  %i:%i   %i\n", x, y, span->width);
             spans.emplace_back(x, y, span->width, 0, 0, -2);
-        } else if (span->pixels.is_pointer()) {
+        } else if (span->pixels == canvas_pixels::transparent()) {
+            // noop
+        } else {
 
             auto p = (long) span->pixels.to_pointer();
 
-            for (int i=0; i<Lgr->grass_pics->elements.size(); i++) {
-                auto& t = Lgr->grass_pics->elements[i];
-                //auto w = t.pic->get_width();
-                //int w = t.pic->get_row(1) - t.pic->get_row(0);
-                //auto h = t.pic->get_height();
-                //long off = p - (long) t.pic->get_row(0);
+            auto tex_id = span->pixels.texture_id();
+
+            if (tex_id > 0xFFFFF) {
+                auto& t = Lgr->grass_pics->elements[tex_id & 0xFFFFF];
 
                 auto [off, w] = get_pic_ptr_offset(p, t.pic.get());
 
-                if (off != -1) { // off >= 0 && off < w * h) {
-                    auto tex_id = i + 0x100000;
-                    spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
-                    return;
-                }
-            }
-
-            for (int i=0; i<Lgr->texture_count; i++) {
-                auto& t = Lgr->textures[i];
-                //auto w = t.pic->get_width();
-                //int w = t.pic->get_row(1) - t.pic->get_row(0);
-                //auto h = t.pic->get_height();
-                //long off = p - (long) t.pic->get_row(0);
-                //if (off >= 0 && off < w * h) {
-                auto [off, w] = get_pic_ptr_offset(p, t.pic);
                 if (off != -1) {
-                    spans.emplace_back(x, y, span->width, off % w, off / w, i);
-                    return;
+                    spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
+                } else {
+                    printf("qupdown id invalid %i\n", off);
                 }
+                return;
             }
 
-            for (int i=0; i<Lgr->picture_count; i++) {
-                auto& t = Lgr->pictures[i];
-                long off = p - (long) t.data;
-                if (off >= 0 && off < t.data_len) {
-                    spans.emplace_back(x, y, span->width, off, -1, i + 0x10000);
-                    return;
+            if (tex_id > 0xFFFF) {
+                auto& pic = Lgr->pictures[tex_id & 0xFFFF];
+                long off = p - (long) pic.data;
+                if (off < 0 || off >= pic.data_len) {
+                    printf("picture id invalid %li\n", off);
+                } else {
+                    spans.emplace_back(x, y, span->width, off, -1, tex_id);
                 }
+                return;
             }
+
+            if (tex_id >= 0) {
+                auto& tex = Lgr->textures[tex_id];
+                auto [off, w] = get_pic_ptr_offset(p, tex.pic);
+                if (off != -1) {
+                    spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
+                } else {
+                    printf("texture id invalid\n");
+                }
+                return;
+            }
+
+
+                //printf("tex id: %i\n", tex_id);
+
+
+
+            //for (int i=0; i<Lgr->grass_pics->elements.size(); i++) {
+            //    auto& t = Lgr->grass_pics->elements[i];
+
+            //    auto [off, w] = get_pic_ptr_offset(p, t.pic.get());
+
+            //    if (off != -1) { // off >= 0 && off < w * h) {
+            //        auto tex_id = i + 0x100000;
+            //        spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
+            //        return;
+            //    }
+            //}
+
+            //for (int i=0; i<Lgr->texture_count; i++) {
+            //    auto& t = Lgr->textures[i];
+            //    auto [off, w] = get_pic_ptr_offset(p, t.pic);
+            //    if (off != -1) {
+            //        spans.emplace_back(x, y, span->width, off % w, off / w, i);
+            //        return;
+            //    }
+            //}
+
+            //for (int i=0; i<Lgr->picture_count; i++) {
+            //    auto& t = Lgr->pictures[i];
+            //    long off = p - (long) t.data;
+            //    if (off >= 0 && off < t.data_len) {
+            //        spans.emplace_back(x, y, span->width, off, -1, i + 0x10000);
+            //        return;
+            //    }
+            //}
 
             auto [off, w] = get_pic_ptr_offset(p, Lgr->background);
             if (off != -1) {
@@ -1755,7 +1797,7 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
 
             }
 
-            printf("tex not found\n");
+            printf("tex not found: tex id %i\n", tex_id);
         }
     };
 
