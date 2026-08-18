@@ -34,9 +34,9 @@
 
 static bool GameBackgroundRender = false;
 
-static abc8* SmallFont = nullptr;
-static abc8* MediumFont = nullptr;
-static abc8* LargeFont = nullptr;
+abc8* SmallFont = nullptr;
+abc8* MediumFont = nullptr;
+abc8* LargeFont = nullptr;
 
 // Percentage of the screen used to render the game (QFRAME drawn on the edge)
 static double VisibleFraction = 1.0;
@@ -229,8 +229,90 @@ static void render_minimap_icon(pic8* pic, int x, int y, unsigned char palette_i
     pic->ppixel(x + 1, y + 1, palette_id);
 }
 
+
+void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
+    vect2 bottomleft_corner, vect2 camera_pos) {
+    // Draw the background (polygons)
+    CanvasMinimap->render_minimap(player1, minimap_view, bottomleft_corner, 0, 0, MinimapWidth - 1,
+                                  MinimapHeight - 1);
+
+
+    // Draw the objects
+    int corner_x;
+    int corner_y;
+    CanvasMinimap->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
+    const kuski* spy_kuski = EolClient->spy_kuski();
+    for (int i = 0; i < MAX_OBJECTS; i++) {
+        object* obj = Level->objects[i];
+        if (!obj) {
+            break;
+        }
+
+        unsigned char palette_id;
+        switch (obj->type) {
+        case object::Type::Food:
+            if (!obj->active || (spy_kuski && spy_kuski->apples_taken[i])) {
+                continue;
+            }
+            palette_id = Lgr->minimap_food_palette_id;
+            break;
+        case object::Type::Exit:
+            if ((!Single && FlagTag) || EolClient->battle_hides_exit()) {
+                continue;
+            }
+            palette_id = Lgr->minimap_exit_palette_id;
+            break;
+        default:
+            continue;
+        }
+
+        render_minimap_icon(minimap_view, obj->minimap_canvas_x - corner_x,
+                            obj->minimap_canvas_y - corner_y, palette_id);
+    }
+
+    // Select the correct color for each bike
+    unsigned char bike1_id = Lgr->minimap_bike1_palette_id;
+    unsigned char bike2_id = Lgr->minimap_bike2_palette_id;
+    if ((State->player1_bike1 && !player1) || (!State->player1_bike1 && player1)) {
+        bike1_id = Lgr->minimap_bike2_palette_id;
+        bike2_id = Lgr->minimap_bike1_palette_id;
+    }
+
+    if (EolSettings->show_others()) {
+        for (const kuski& ku : EolClient->kuskis()) {
+            const spy_data* k = ku.spy_data();
+            if (!k) {
+                continue;
+            }
+
+            vect2 k_pos = k->mot.bike.r - bottomleft_corner;
+            int k_x = (int)(k_pos.x * MetersToMinimapPixels);
+            int k_y = (int)(k_pos.y * MetersToMinimapPixels);
+            render_minimap_icon(minimap_view, k_x, k_y, bike2_id);
+        }
+    }
+
+    // Draw the other bike
+    if (other_motor) {
+        vect2 other_pos = other_motor->bike.r - bottomleft_corner;
+        int other_x = (int)(other_pos.x * MetersToMinimapPixels);
+        int other_y = (int)(other_pos.y * MetersToMinimapPixels);
+        render_minimap_icon(minimap_view, other_x, other_y, bike2_id);
+    }
+
+    // Draw the current player's bike
+    int bike_x = (int)(camera_pos.x * MetersToMinimapPixels);
+    int bike_y = (int)(camera_pos.y * MetersToMinimapPixels);
+    render_minimap_icon(minimap_view, bike_x, bike_y, bike1_id);
+}
+
+
+
+
+
+
 // Render the entire minimap
-static void render_minimap(bool player1, pic8* pic, double camera_turn_phase, vect2 bike_center,
+void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
                            motorst* other_motor) {
     // Calculate minimap size and minimap frame of reference
     double minimap_width = MinimapWidth * MinimapScaleFactor * PixelsToMeters;
@@ -263,114 +345,11 @@ static void render_minimap(bool player1, pic8* pic, double camera_turn_phase, ve
     const int minimap_y1 = 1;
     const int minimap_y2 = minimap_y1 + MinimapHeight - 1;
 
-    const int border_x1 = minimap_x1 - 1;
-    const int border_x2 = minimap_x2 + 1;
-    const int border_y1 = minimap_y1 - 1;
-    const int border_y2 = minimap_y2 + 1;
-
-    if (border_x1 < 0 || border_y1 < 0 || border_x2 >= pic->get_width() ||
-        border_y2 >= pic->get_height()) {
-        // Minimap doesn't fit on the screen, so skip drawing it entirely
-        return;
-    }
-
-    static pic8 minimap_view = pic8();
-    minimap_view.subview(minimap_x1, minimap_y1, minimap_x2, minimap_y2, pic);
-    static pic8 border_view = pic8();
-    border_view.subview(border_x1, border_y1, border_x2, border_y2, pic);
-
-    // Save game scene pixels under the minimap area (including 1px border margin)
-    int opacity = EolSettings->minimap_opacity();
-    static pic8* save_pic = nullptr;
-    if (opacity < 100) {
-        if (!save_pic || save_pic->get_width() != border_view.get_width() ||
-            save_pic->get_height() != border_view.get_height()) {
-            delete save_pic;
-            save_pic = new pic8(border_view.get_width(), border_view.get_height());
-        }
-        blit8(save_pic, &border_view);
-    }
-
-    // Draw the minimap border
-    border_view.fill_box(Lgr->minimap_border_palette_id);
-
-    // Draw the background (polygons)
-    CanvasMinimap->render_minimap(player1, &minimap_view, bottomleft_corner, 0, 0, MinimapWidth - 1,
-                                  MinimapHeight - 1);
-
-    // Draw the objects
-    int corner_x;
-    int corner_y;
-    CanvasMinimap->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
-    const kuski* spy_kuski = EolClient->spy_kuski();
-    for (int i = 0; i < MAX_OBJECTS; i++) {
-        object* obj = Level->objects[i];
-        if (!obj) {
-            break;
-        }
-
-        unsigned char palette_id;
-        switch (obj->type) {
-        case object::Type::Food:
-            if (!obj->active || (spy_kuski && spy_kuski->apples_taken[i])) {
-                continue;
-            }
-            palette_id = Lgr->minimap_food_palette_id;
-            break;
-        case object::Type::Exit:
-            if ((!Single && FlagTag) || EolClient->battle_hides_exit()) {
-                continue;
-            }
-            palette_id = Lgr->minimap_exit_palette_id;
-            break;
-        default:
-            continue;
-        }
-
-        render_minimap_icon(&minimap_view, obj->minimap_canvas_x - corner_x,
-                            obj->minimap_canvas_y - corner_y, palette_id);
-    }
-
-    // Select the correct color for each bike
-    unsigned char bike1_id = Lgr->minimap_bike1_palette_id;
-    unsigned char bike2_id = Lgr->minimap_bike2_palette_id;
-    if ((State->player1_bike1 && !player1) || (!State->player1_bike1 && player1)) {
-        bike1_id = Lgr->minimap_bike2_palette_id;
-        bike2_id = Lgr->minimap_bike1_palette_id;
-    }
-
-    if (EolSettings->show_others()) {
-        for (const kuski& ku : EolClient->kuskis()) {
-            const spy_data* k = ku.spy_data();
-            if (!k) {
-                continue;
-            }
-
-            vect2 k_pos = k->mot.bike.r - bottomleft_corner;
-            int k_x = (int)(k_pos.x * MetersToMinimapPixels);
-            int k_y = (int)(k_pos.y * MetersToMinimapPixels);
-            render_minimap_icon(&minimap_view, k_x, k_y, bike2_id);
-        }
-    }
-
-    // Draw the other bike
-    if (other_motor) {
-        vect2 other_pos = other_motor->bike.r - bottomleft_corner;
-        int other_x = (int)(other_pos.x * MetersToMinimapPixels);
-        int other_y = (int)(other_pos.y * MetersToMinimapPixels);
-        render_minimap_icon(&minimap_view, other_x, other_y, bike2_id);
-    }
-
-    // Draw the current player's bike
-    int bike_x = (int)(camera_pos.x * MetersToMinimapPixels);
-    int bike_y = (int)(camera_pos.y * MetersToMinimapPixels);
-    render_minimap_icon(&minimap_view, bike_x, bike_y, bike1_id);
-
-    // Bring back pixels from the saved game scene based on opacity
-    if (opacity < 100) {
-        blit8_dither(&border_view, save_pic, 0, 0, opacity);
-    }
+    render_minimap(player1, other_motor,
+                   minimap_x1, minimap_y1, minimap_x2, minimap_y2,
+                   bottomleft_corner, camera_pos);
 }
+
 
 static void handle_screenshot(pic8* pic) {
     if (VideoRecordingMode) {
@@ -388,15 +367,6 @@ static void handle_screenshot(pic8* pic) {
     }
 }
 
-// Cover the screen with qframe
-static void render_background(pic8* pic) {
-    for (int i = 0; i < pic->get_height(); i += Lgr->qframe->get_height()) {
-        for (int j = 0; j < pic->get_width(); j += Lgr->qframe->get_width()) {
-            blit8(pic, Lgr->qframe, j, i);
-        }
-    }
-}
-
 // Local (2-player) flag tag: does this player's bike currently show the flag?
 static bool local_flag_tag_has_flag(bool player1, double time) {
     if (Single || !FlagTag) {
@@ -411,7 +381,7 @@ static bool local_flag_tag_has_flag(bool player1, double time) {
 }
 
 // Render an entire bike + kuski
-static void render_bike(pic8* pic, bool has_flag, vect2 bottomleft_corner, const motorst* mot,
+static void _render_bike(pic8* pic, bool has_flag, vect2 bottomleft_corner, const motorst* mot,
                         const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt) {
     double arm_position = metadata->arm_position;
     double turn_phase = metadata->bike_turning.turn_phase;
@@ -617,14 +587,9 @@ static bool bike_in_view(const motorst* mot, vect2 center) {
     return distance < (std::max(SCREEN_WIDTH, SCREEN_HEIGHT) * 27.0 / 32.0) * PixelsToMeters;
 }
 
-struct info_panel_row {
-    std::string label;
-    std::string value;
-};
-
 // Render the bottom-right info panel: rows[0] is the bottom row, each later row stacks above it
 // (the backbuffer is upside-down, so larger y is higher on screen).
-static void render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
+static void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
     constexpr int RIGHT_MARGIN = 10;
     constexpr int BOTTOM_MARGIN = 10;
     constexpr int LABEL_OFFSET = 180;
@@ -648,181 +613,8 @@ static void render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows
     }
 }
 
-// Render the view for one player
-static void render_view(bool player1, bool bottom_player, pic8* pic, double time, driver& driv,
-                        driver& other_driv, camera& current_camera, GameLoop loop) {
-    // Calculate frame of reference
-    vect2 bike_center = driv.mot->bike.r;
-    if (current_camera.mode == CameraMode::MapViewer) {
-        bike_center = vect2(current_camera.x, current_camera.y);
-    }
-
-    const kuski* spy_kuski = EolClient->spy_kuski();
-    if (spy_kuski) {
-        bike_center = spy_kuski->spy_data()->mot.bike.r;
-    }
-
-    vect2 bottomleft_corner(bike_center.x -
-                                (CameraX + driv.meta.camera_turning.turn_phase * CameraDx),
-                            bike_center.y - CameraY);
-    vect2 center(bottomleft_corner.x + (SCREEN_WIDTH / 2.0) * PixelsToMeters,
-                 bottomleft_corner.y + (SCREEN_HEIGHT / 2.0) * PixelsToMeters);
-
-    // Draw the background
-    CanvasBack->render(player1, pic, bottomleft_corner, 0, 0, GameViewWidth - 1,
-                       GameViewHeight - 1);
-
-    // Draw the objects
-    int corner_x;
-    int corner_y;
-    CanvasBack->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
-    int object_border_left = corner_x - (int)(ANIM_WIDTH * EolSettings->zoom()) - 2;
-    int object_border_bottom = corner_y - (int)(ANIM_WIDTH * EolSettings->zoom()) - 2;
-    int object_border_right = corner_x + SCREEN_WIDTH;
-    int object_border_top = corner_y + SCREEN_HEIGHT;
-    for (int i = 0; i < MAX_OBJECTS; i++) {
-        object* obj = Level->objects[i];
-        if (!obj) {
-            break;
-        }
-
-        if (obj->type == object::Type::Start) {
-            continue;
-        }
-        if (obj->type == object::Type::Food &&
-            (!obj->active || (spy_kuski && spy_kuski->apples_taken[i]))) {
-            continue;
-        }
-        if (obj->type == object::Type::Exit &&
-            ((!Single && FlagTag) || EolClient->battle_hides_exit())) {
-            continue;
-        }
-
-        if (obj->canvas_x < object_border_left || obj->canvas_y < object_border_bottom ||
-            obj->canvas_x > object_border_right || obj->canvas_y > object_border_top) {
-            continue;
-        }
-
-        pic8* obj_frame = nullptr;
-        int phase_y_offset = 0;
-        if (State->animated_objects) {
-            switch (obj->type) {
-            case object::Type::Food:
-                obj_frame = Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_time(time);
-                phase_y_offset =
-                    (int)(5.0 * EolSettings->zoom() * sin(time * 15.5 + obj->floating_phase));
-                break;
-            case object::Type::Exit:
-                obj_frame = Lgr->exit->get_frame_by_time(time);
-                phase_y_offset =
-                    (int)(5.0 * EolSettings->zoom() * sin(time * 15.5 + obj->floating_phase));
-                break;
-            case object::Type::Killer:
-                obj_frame = Lgr->killer->get_frame_by_time(time);
-                break;
-            default:
-                internal_error("render_view invalid object type");
-            }
-
-            if (EolSettings->still_objects()) {
-                phase_y_offset = 0;
-            }
-        } else {
-            switch (obj->type) {
-            case object::Type::Food:
-                obj_frame = Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_index(0);
-                break;
-            case object::Type::Exit:
-                obj_frame = Lgr->exit->get_frame_by_index(0);
-                break;
-            case object::Type::Killer:
-                obj_frame = Lgr->killer->get_frame_by_index(0);
-                break;
-            default:
-                internal_error("render_view invalid object type");
-            }
-        }
-
-        blit8(pic, obj_frame, obj->canvas_x - corner_x, obj->canvas_y - corner_y + phase_y_offset);
-
-        if (EolSettings->show_gravity_arrows() && obj->type == object::Type::Food &&
-            obj->property != object::Property::None) {
-            draw_gravity_arrow(pic, obj->canvas_x - corner_x,
-                               obj->canvas_y - corner_y + phase_y_offset, obj->property);
-        }
-    }
-
-    // Select the correct bike for each player
-    bike_pics* bike1 = &Lgr->bike1;
-    bike_pics* bike2 = &Lgr->bike2;
-    if ((State->player1_bike1 && !player1) || (!State->player1_bike1 && player1)) {
-        bike1 = &Lgr->bike2;
-        bike2 = &Lgr->bike1;
-    }
-
-    if (EolSettings->show_others()) {
-        for (const kuski& ku : EolClient->kuskis()) {
-            if (&ku == spy_kuski) {
-                continue;
-            }
-            const spy_data* k = ku.spy_data();
-            if (!k) {
-                continue;
-            }
-
-            if (bike_in_view(&k->mot, center)) {
-                render_bike(pic, EolClient->kuski_has_flag(ku.id), bottomleft_corner, &k->mot,
-                            &k->metadata, bike2, ku.shirt);
-            }
-        }
-    }
-
-    if (spy_kuski) {
-        const spy_data* k = spy_kuski->spy_data();
-        if (k && bike_in_view(&k->mot, center)) {
-            render_bike(pic, EolClient->kuski_has_flag(spy_kuski->id), bottomleft_corner, &k->mot,
-                        &k->metadata, bike2, spy_kuski->shirt);
-        }
-    }
-
-    if (current_camera.mode == CameraMode::Normal) {
-        if (!Single) {
-            // Draw the other bike if it's on-screen
-            if (bike_in_view(other_driv.mot, center)) {
-                render_bike(pic, local_flag_tag_has_flag(!player1, time), bottomleft_corner,
-                            other_driv.mot, &other_driv.meta, bike2, nullptr);
-            }
-        }
-
-        // Draw the current player's bike
-        render_bike(pic, local_flag_tag_has_flag(player1, time) || EolClient->own_bike_has_flag(),
-                    bottomleft_corner, driv.mot, &driv.meta, bike1, shirt);
-    }
-
-    // Draw the foreground
-    if (!EolSettings->pictures_in_background()) {
-        CanvasFront->render(player1, pic, bottomleft_corner, 0, 0, GameViewWidth - 1,
-                            GameViewHeight - 1);
-    }
-
-    // Draw the minimap
-    if (driv.hud->minimap) {
-        if (Single) {
-            render_minimap(player1, pic, driv.meta.camera_turning.turn_phase, bike_center, nullptr);
-        } else {
-            render_minimap(player1, pic, driv.meta.camera_turning.turn_phase, bike_center,
-                           other_driv.mot);
-        }
-    }
-
-    // Draw the timers
-    if (driv.hud->timer) {
-        double flagtag_time = -1.0;
-        if (!Single && FlagTag) {
-            flagtag_time = player1 ? FlagTimeA : FlagTimeB;
-        }
-        draw_timers(BestTime, flagtag_time, time, pic, GameViewWidth, GameViewHeight);
-    }
+static std::vector<info_panel_row> get_info_rows(
+        bool bottom_player, GameLoop loop, camera current_camera, driver& driv) {
 
     // Build the bottom-right info panel rows.
     // rows are rendered in the order they were added (last added on top)
@@ -860,25 +652,137 @@ static void render_view(bool player1, bool bottom_player, pic8* pic, double time
              apple_time});
     }
 
-    if (!EolClient->play_offline() && !EolClient->connected()) {
-        MediumFont->write_right_align(
-            pic, GameViewWidth - 10, GameViewHeight - MediumFont->line_height() * 2,
-            std::format("Lost connection ({} to reconnect)", dik_to_string(State->key_reconnect))
-                .c_str());
-    }
+    //if (!EolClient->play_offline() && !EolClient->connected()) {
+    //    MediumFont->write_right_align(
+    //        pic, GameViewWidth - 10, GameViewHeight - MediumFont->line_height() * 2,
+    //        std::format("Lost connection ({} to reconnect)", dik_to_string(State->key_reconnect))
+    //            .c_str(Tahoma));
+    //}
 
-    render_info_panel(pic, info_rows);
+    return info_rows;
 }
 
-void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
-    fps::count_fps();
-    
-    return gl_render_game(time, driv1, current_camera, loop);
+// Render the view for one player
+void GameRenderer::render_view(bool player1, bool bottom_player, int left, int bottom, int right, int top) {
+
+    auto driv = player1 ? driv1 : driv2;
+    auto other_driv = player1 ? driv2 : driv1;
+
+    // Give advance notice of the timers since OpenGL is a diva
+    // (should come before subview)
+    if (driv.hud->timer) {
+        double flagtag_time = -1.0;
+        if (!Single && FlagTag) {
+            flagtag_time = player1 ? FlagTimeA : FlagTimeB;
+        }
+        prerender_timers(BestTime, flagtag_time, GameViewWidth, GameViewHeight);
+    }
+
+    // Calculate frame of reference
+    vect2 bike_center = driv.mot->bike.r;
+    if (current_camera.mode == CameraMode::MapViewer) {
+        bike_center = vect2(current_camera.x, current_camera.y);
+    }
+
+    const kuski* spy_kuski = EolClient->spy_kuski();
+    if (spy_kuski) {
+        bike_center = spy_kuski->spy_data()->mot.bike.r;
+    }
+
+    bottomleft_corner.x = bike_center.x - (CameraX + driv.meta.camera_turning.turn_phase * CameraDx);
+    bottomleft_corner.y = bike_center.y - CameraY;
+
+    center.x = bottomleft_corner.x + (SCREEN_WIDTH / 2.0) * PixelsToMeters;
+    center.y = bottomleft_corner.y + (SCREEN_HEIGHT / 2.0) * PixelsToMeters;
+
+    // Set part of screen to draw on
+    subview(left, bottom, right, top);
+
+    // Draw the background
+    render_back(player1);
+
+    // Draw the objects
+    render_objects(spy_kuski);
+
+    // Select the correct bike for each player
+    bike_pics* bike1 = &Lgr->bike1;
+    bike_pics* bike2 = &Lgr->bike2;
+    if ((State->player1_bike1 && !player1) || (!State->player1_bike1 && player1)) {
+        bike1 = &Lgr->bike2;
+        bike2 = &Lgr->bike1;
+    }
+
+    if (EolSettings->show_others()) {
+        for (const kuski& ku : EolClient->kuskis()) {
+            if (&ku == spy_kuski) {
+                continue;
+            }
+            const spy_data* k = ku.spy_data();
+            if (!k) {
+                continue;
+            }
+
+            if (bike_in_view(&k->mot, center)) {
+                render_bike(EolClient->kuski_has_flag(ku.id), &k->mot,
+                            &k->metadata, bike2, ku.shirt);
+            }
+        }
+    }
+
+    if (spy_kuski) {
+        const spy_data* k = spy_kuski->spy_data();
+        if (k && bike_in_view(&k->mot, center)) {
+            render_bike(EolClient->kuski_has_flag(spy_kuski->id), &k->mot,
+                        &k->metadata, bike2, spy_kuski->shirt);
+        }
+    }
+
+    if (current_camera.mode == CameraMode::Normal) {
+        if (!Single) {
+            // Draw the other bike if it's on-screen
+            if (bike_in_view(other_driv.mot, center)) {
+                render_bike(local_flag_tag_has_flag(!player1, time),
+                            other_driv.mot, &other_driv.meta, bike2, nullptr);
+            }
+        }
+
+        // Draw the current player's bike
+        render_bike(local_flag_tag_has_flag(player1, time) || EolClient->own_bike_has_flag(),
+                    driv.mot, &driv.meta, bike1, shirt);
+    }
+
+    // Draw the foreground
+    if (!EolSettings->pictures_in_background()) {
+        render_front(player1);
+    }
+
+    // Draw the minimap
+    if (driv.hud->minimap) {
+        auto other = Single ? nullptr : other_driv.mot;
+        dispatch_minimap(player1, driv.meta.camera_turning.turn_phase, bike_center, other);
+    }
+
+    // Draw the timers
+    if (driv.hud->timer) {
+        double flagtag_time = -1.0;
+        if (!Single && FlagTag) {
+            flagtag_time = player1 ? FlagTimeA : FlagTimeB;
+        }
+        render_timers(BestTime, flagtag_time, GameViewWidth, GameViewHeight);
+    }
+
+    auto info_rows = get_info_rows(bottom_player, loop, current_camera, driv);
+
+    render_info_panel(info_rows);
+}
 
 
+GameRenderer::GameRenderer(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop)
+    : time(time), driv1(driv1), driv2(driv2), current_camera(current_camera), loop(loop)
+{
     // Determine who we are going to draw (player 1, player 2 or both)
-    bool draw_player1 = driv1.draw_view;
-    bool draw_player2 = driv2.draw_view;
+    draw_player1 = driv1.draw_view;
+    draw_player2 = driv2.draw_view;
     if (Single || current_camera.mode == CameraMode::MapViewer) {
         draw_player1 = true;
         draw_player2 = false;
@@ -886,45 +790,242 @@ void render_game(double time, driver& driv1, driver& driv2, camera& current_came
     if (!draw_player1 && !draw_player2) {
         internal_error("render_game nobody visible!");
     }
-    bool splitscreen = draw_player1 && draw_player2;
+    splitscreen = draw_player1 && draw_player2;
+}
 
-    // Get the screen, upside-down
-    pic8* pic = lock_backbuffer_pic(true);
+void GameRenderer::render() {
+
+    start_frame();
 
     // If we need to recalculate the screen position, redraw the background qframe
     if (GameBackgroundRender) {
         GameBackgroundRender = false;
         calculate_viewpoints(splitscreen);
-        render_background(pic);
+        render_background();
     }
 
     // Draw 1 or 2 players
-    static pic8 player_view = pic8();
     if (splitscreen) {
-        player_view.subview(GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1, pic);
-        render_view(true, false, &player_view, time, driv1, driv2, current_camera, loop);
+        render_view(true, false, GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1);
+        //render_view(true, false, &player_view, time, driv1, driv2, current_camera, loop);
 
-        player_view.subview(GameViewLeft, GameViewBottom2, GameViewRight, GameViewTop2, pic);
-        render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
+        render_view(false, true, GameViewLeft, GameViewBottom2, GameViewRight, GameViewTop2);
+        //render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
     } else {
-        player_view.subview(GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1, pic);
-        if (draw_player1) {
-            render_view(true, true, &player_view, time, driv1, driv2, current_camera, loop);
-        } else {
-            render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
-        }
+        render_view(draw_player1, true, GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1);
+        //if (draw_player1) {
+        //    render_view(true, true, &player_view, time, driv1, driv2, current_camera, loop);
+        //} else {
+        //    render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
+        //}
     }
 
     // Draw EOL overlays
-    Console->render(*pic);
-    StatusMessages->render(*pic, *SmallFont);
-    EolClient->render_table(*pic, *MediumFont, *SmallFont);
-    EolClient->render_battle_status(*pic, *SmallFont);
-    EolClient->render_battle_leader(*pic, *SmallFont);
-    EolClient->render_battle_countdown(*pic, *LargeFont, *SmallFont);
+    //Console->render(*pic);
+    //StatusMessages->render(*pic, *SmallFont);
+    //EolClient->render_table(*pic, *MediumFont, *SmallFont);
+    //EolClient->render_battle_status(*pic, *SmallFont);
+    //EolClient->render_battle_leader(*pic, *SmallFont);
+    //EolClient->render_battle_countdown(*pic, *LargeFont, *SmallFont);
 
-    // Conditionally save screenshot
-    handle_screenshot(pic);
+    //// Conditionally save screenshot
+    //handle_screenshot(pic);
 
-    unlock_backbuffer_pic();
+    end_frame();
+}
+
+class CPURenderer : public GameRenderer {
+    pic8* pic_main;
+    pic8* pic_view = nullptr;
+
+    public:
+    using GameRenderer::GameRenderer;
+    void start_frame() override {
+        pic_main = lock_backbuffer_pic(true);
+    }
+    void end_frame() override {
+        unlock_backbuffer_pic();
+    }
+    void subview(int left, int bottom, int right, int top) override {
+        delete pic_view;
+        pic_view = new pic8;
+        pic_view->subview(left, bottom, right, top, pic_main);
+    }
+
+    // Cover the screen with qframe
+    void render_background() override {
+        for (int i = 0; i < pic_main->get_height(); i += Lgr->qframe->get_height()) {
+            for (int j = 0; j < pic_main->get_width(); j += Lgr->qframe->get_width()) {
+                blit8(pic_main, Lgr->qframe, j, i);
+            }
+        }
+    }
+
+    void render_objects(const kuski* spy_kuski) override {
+        // Draw the objects
+        int corner_x;
+        int corner_y;
+        CanvasBack->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
+        int object_border_left = corner_x - (int)(ANIM_WIDTH * EolSettings->zoom()) - 2;
+        int object_border_bottom = corner_y - (int)(ANIM_WIDTH * EolSettings->zoom()) - 2;
+        int object_border_right = corner_x + SCREEN_WIDTH;
+        int object_border_top = corner_y + SCREEN_HEIGHT;
+        for (int i = 0; i < MAX_OBJECTS; i++) {
+            object* obj = Level->objects[i];
+            if (!obj) {
+                break;
+            }
+
+            if (obj->type == object::Type::Start) {
+                continue;
+            }
+            if (obj->type == object::Type::Food &&
+                (!obj->active || (spy_kuski && spy_kuski->apples_taken[i]))) {
+                continue;
+            }
+            if (obj->type == object::Type::Exit &&
+                ((!Single && FlagTag) || EolClient->battle_hides_exit())) {
+                continue;
+            }
+
+            if (obj->canvas_x < object_border_left || obj->canvas_y < object_border_bottom ||
+                obj->canvas_x > object_border_right || obj->canvas_y > object_border_top) {
+                continue;
+            }
+
+            pic8* obj_frame = nullptr;
+            int phase_y_offset = 0;
+            if (State->animated_objects) {
+                switch (obj->type) {
+                case object::Type::Food:
+                    obj_frame = Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_time(time);
+                    phase_y_offset =
+                        (int)(5.0 * EolSettings->zoom() * sin(time * 15.5 + obj->floating_phase));
+                    break;
+                case object::Type::Exit:
+                    obj_frame = Lgr->exit->get_frame_by_time(time);
+                    phase_y_offset =
+                        (int)(5.0 * EolSettings->zoom() * sin(time * 15.5 + obj->floating_phase));
+                    break;
+                case object::Type::Killer:
+                    obj_frame = Lgr->killer->get_frame_by_time(time);
+                    break;
+                default:
+                    internal_error("render_view invalid object type");
+                }
+
+                if (EolSettings->still_objects()) {
+                    phase_y_offset = 0;
+                }
+            } else {
+                switch (obj->type) {
+                case object::Type::Food:
+                    obj_frame = Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_index(0);
+                    break;
+                case object::Type::Exit:
+                    obj_frame = Lgr->exit->get_frame_by_index(0);
+                    break;
+                case object::Type::Killer:
+                    obj_frame = Lgr->killer->get_frame_by_index(0);
+                    break;
+                default:
+                    internal_error("render_view invalid object type");
+                }
+            }
+
+            blit8(pic_view, obj_frame, obj->canvas_x - corner_x, obj->canvas_y - corner_y + phase_y_offset);
+
+            if (EolSettings->show_gravity_arrows() && obj->type == object::Type::Food &&
+                obj->property != object::Property::None) {
+                draw_gravity_arrow(pic_view, obj->canvas_x - corner_x,
+                                   obj->canvas_y - corner_y + phase_y_offset, obj->property);
+            }
+        }
+    }
+
+    void render_bike(bool has_flag, const motorst* mot,
+                     const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt) override {
+        _render_bike(pic_view, has_flag, bottomleft_corner, mot, metadata, bike, shirt);
+    }
+
+    void render_back(bool player1) override {
+        CanvasBack->render(player1, pic_view, bottomleft_corner,
+                0, 0, GameViewWidth - 1, GameViewHeight - 1);
+    }
+
+    void render_front(bool player1) override {
+        CanvasFront->render(player1, pic_view, bottomleft_corner,
+                0, 0, GameViewWidth - 1, GameViewHeight - 1);
+    }
+
+    void render_minimap(bool player1, motorst* other_motor,
+                        int x1, int y1, int x2, int y2,        
+                        vect2 bottomleft_corner, vect2 camera_pos) override {
+
+        const int border_x1 = x1 - 1;
+        const int border_x2 = x2 + 1;
+        const int border_y1 = y1 - 1;
+        const int border_y2 = y2 + 1;
+
+        if (border_x1 < 0 || border_y1 < 0 || border_x2 >= pic_view->get_width() ||
+            border_y2 >= pic_view->get_height()) {
+            // Minimap doesn't fit on the screen, so skip drawing it entirely
+            return;
+        }
+
+        static pic8 minimap_view = pic8();
+        minimap_view.subview(x1, y1, x2, y2, pic_view);
+        static pic8 border_view = pic8();
+        border_view.subview(border_x1, border_y1, border_x2, border_y2, pic_view);
+
+        // Save game scene pixels under the minimap area (including 1px border margin)
+        int opacity = EolSettings->minimap_opacity();
+        static pic8* save_pic = nullptr;
+        if (opacity < 100) {
+            if (!save_pic || save_pic->get_width() != border_view.get_width() ||
+                save_pic->get_height() != border_view.get_height()) {
+                delete save_pic;
+                save_pic = new pic8(border_view.get_width(), border_view.get_height());
+            }
+            blit8(save_pic, &border_view);
+        }
+
+        // Draw the minimap border
+        border_view.fill_box(Lgr->minimap_border_palette_id);
+
+        // Draw the minimap
+        render_minimap_subview(player1, &minimap_view, other_motor, bottomleft_corner, camera_pos);
+
+        // Bring back pixels from the saved game scene based on opacity
+        if (opacity < 100) {
+            blit8_dither(&border_view, save_pic, 0, 0, opacity);
+        }
+    };
+
+    void render_timers(const char* best_time_text, double flag_tag_time,
+                       int dest_width, int dest_height) override {
+        draw_timers(best_time_text, flag_tag_time, time, pic_view, dest_width, dest_height);
+    };
+
+    void render_info_panel(const std::vector<info_panel_row>& rows) override {
+        _render_info_panel(pic_view, rows);
+    };
+};
+
+
+void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
+    fps::count_fps();
+
+    GameRenderer* renderer = nullptr;
+
+    auto cpu_render = std::getenv("CPURENDER");
+    if (!cpu_render && EolSettings->renderer() == RendererType::OpenGL) {
+        renderer = new OpenGLRenderer(time, driv1, driv2, current_camera, loop);
+    } else {
+        renderer = new CPURenderer(time, driv1, driv2, current_camera, loop);
+    }
+
+    renderer->render();
+
+    delete renderer;
 }

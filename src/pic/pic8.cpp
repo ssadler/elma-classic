@@ -177,6 +177,7 @@ unsigned char pic8::gpixel(int x, int y) const {
 #ifdef DEBUG
 unsigned char* pic8::get_row(int y) {
     if (y < 0 || y >= height) {
+        printf("get row %i of %i\n", y, height);
         internal_error("pic8::get_row y out of bounds!");
     }
     return rows[y];

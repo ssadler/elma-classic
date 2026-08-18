@@ -28,6 +28,11 @@ GLuint upload_pcx8(unsigned char* pixels, int width, int height, int row_length)
                width, height, 0,
                GL_RED_INTEGER, GL_UNSIGNED_BYTE,
                pixels);
+
+  if (row_length > 0) {
+      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  }
+
   return tex_id;
 }
 
@@ -77,13 +82,14 @@ GLuint upload_pcx8_cb(int width, int height, const std::function<void(unsigned c
   GL_DEBUG
 
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
   return tex;
 }
 
 
 
-GLuint upload_pic8_texture(pic8* pic) {
+GLuint upload_pic8_texture(const pic8* pic) {
 
     auto w = pic->get_width();
 
@@ -95,7 +101,7 @@ GLuint upload_pic8_texture(pic8* pic) {
 }
 
 
-GLuint upload_picture_texture(picture* pic) {
+GLuint upload_picture_texture(const picture* pic) {
 
 
     GLuint buffer_id;

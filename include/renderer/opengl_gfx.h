@@ -103,6 +103,10 @@ class Graphics {
         glUniformBlockBinding(program, index, idx);
     }
 
+    bool compiled() const {
+        return program != 0;
+    }
+
     void buffer_data(int num_verts, const void* ptr, GLenum usage) {
       if (!vao) {
         internal_error("GlManaged::buffer_data: compile first");
@@ -121,7 +125,6 @@ class Graphics {
       glBufferData(GL_ARRAY_BUFFER, size, ptr, usage);
 
       _num_verts = num_verts;
-      printf("num verts %i\n", num_verts);
     }
 
     void sub_data(int offset, int num_verts, void* ptr) {
@@ -146,6 +149,7 @@ class Graphics {
     }
 
     void uniform1i(const char* name, int value) const;
+    void uniform4i(const char* name, int val0, int val1, int val2, int val3) const;
     void uniform1ui(const char* name, int value) const;
     void uniform1f(const char* name, float value) const;
     void uniform2f(const char* name, float val0, float val1) const;
@@ -232,5 +236,49 @@ constexpr auto enumerate(T && iterable)
     };
     return iterable_wrapper{ std::forward<T>(iterable) };
 }
+
+
+
+
+class gl_ring_buffer {
+  const int N_FRAMES = 3;
+  int stride;
+  int buftype;
+  int max_verts;
+  int offset = 0;
+
+  public:
+  GLuint vbo;
+
+  gl_ring_buffer(int _buftype, int _stride, int _max_verts)
+    : gl_ring_buffer(
+        _buftype, _stride, _max_verts,
+        []{ GLuint vbo; glGenBuffers(1, &vbo); return vbo; }()
+      ) {}
+
+  gl_ring_buffer(int _buftype, int _stride, int _max_verts, GLuint _vbo)
+    : stride(_stride), buftype(_buftype), max_verts(_max_verts), vbo(_vbo) {
+    glBindBuffer(buftype, vbo);
+    glBufferData(buftype, max_verts * N_FRAMES * stride, nullptr, GL_STREAM_DRAW);
+  }
+
+  int push_data(int num_verts, void* ptr) {
+    if (num_verts > max_verts) {
+      internal_error("gl_ring_buffer::push_data: num_verts > max_verts");
+    }
+    auto size = num_verts * stride;
+    if (offset + size > max_verts * stride * N_FRAMES) {
+      offset = 0;
+    }
+    glBindBuffer(buftype, vbo);
+    glBufferSubData(buftype, offset, size, ptr);
+    int o = offset;
+    offset += size;
+    return o / stride;
+  }
+};
+
+
+
 
 #endif

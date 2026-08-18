@@ -12,7 +12,9 @@
 #define PICTURE_MASK (1<<16)
 #define GRASS_MASK (1<<17)
 #define ANIM_MASK (1<<18)
-#define GRAVITY_ARROW_MASK (1<<19)
+#define MISC_MASK (1<<19)
+#define GRAVITY_ARROW MISC_MASK
+#define RIDER_FLAG (MISC_MASK + 1)
 #define DEFAULT_BACKGROUND -2
 #define DEFAULT_FOREGROUND -1
 
@@ -122,10 +124,23 @@ cached<anim> lgr_texture_cache::get_anim(int anim_id) {
 
 cached<pic8> lgr_texture_cache::get_grav_arrow() {
 
-    auto r = &cache[GRAVITY_ARROW_MASK];
+    auto r = &cache[GRAVITY_ARROW];
 
     if (r->tex == 0) {
         auto pic = get_gravity_arrow(object::Property::GravityDown);
+        r->tex = upload_pic8_texture(pic);
+        r->obj = (void*) pic;
+    }
+
+    return {r->tex, (pic8*)r->obj};
+}
+
+cached<pic8> lgr_texture_cache::get_rider_flag() {
+
+    auto r = &cache[RIDER_FLAG];
+
+    if (r->tex == 0) {
+        auto pic = Lgr->flag;
         r->tex = upload_pic8_texture(pic);
         r->obj = (void*) pic;
     }

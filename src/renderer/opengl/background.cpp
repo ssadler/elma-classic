@@ -92,7 +92,7 @@ static void init() {
 
 
 
-GlLifecycle<> Background = {
+gl_lifecycle<> Background = {
     .init = &init,
     .on_lgr = []() {
         auto pic = LgrTexture.get_texture(-1);

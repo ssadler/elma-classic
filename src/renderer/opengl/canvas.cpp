@@ -226,9 +226,7 @@ static void render(canvas_painter* paint) {
     paint->gfx.uniform1i("tex", 0);
     paint->gfx.uniform1i("sprite", 1);
 
-    for (int i=0; i<paint->groups.size(); i++) {
-        auto& group = paint->groups[i];
-    //for (auto& group : paint->groups) {
+    for (auto& group : paint->groups) {
 
         int unit = group.tex_size[1] < 0; // 0 for 2D, 1 for 1D
         glBindTextureUnit(unit, group.tex & 0xffff);
@@ -240,7 +238,7 @@ static void render(canvas_painter* paint) {
 
 
 
-GlLifecycle<bool> Canvas = {
+gl_lifecycle<bool> Canvas = {
     .init = [] {
         Back = init_painter();
         Front = init_painter();

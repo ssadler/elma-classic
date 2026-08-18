@@ -90,6 +90,11 @@ elma_sources = files(
     'src/renderer/opengl/background.cpp',
     'src/renderer/opengl/objects.cpp',
     'src/renderer/opengl/timer.cpp',
+    'src/renderer/opengl/minimap.cpp',
+    'src/renderer/opengl/console.cpp',
+    'src/renderer/opengl/widget.cpp',
+    'src/renderer/opengl/widget_text.cpp',
+    'src/renderer/opengl/widget_text_ft.cpp',
     'src/renderer/opengl.cpp',
     'src/sound/engine.cpp',
     'src/sound/wav.cpp',
@@ -128,6 +133,12 @@ else
     cpp_args += ['-Wno-deprecated-declarations', '-Wunreachable-code']
 endif
 
+if get_option('no_freetype')            
+  freetype_dep = []                     
+else                                    
+  freetype_dep = dependency('freetype2')
+endif                                   
+
 sdl2_dep = dependency('sdl2',
     static: build_machine.system() == 'windows' or get_option('static_sdl'),
     default_options: {
@@ -140,7 +151,7 @@ gl_dep = dependency('gl', required: true)
 
 nlohmann_json_dep = dependency('nlohmann_json')
 
-deps += [nlohmann_json_dep, gl_dep, sdl2_dep]
+deps += [nlohmann_json_dep, gl_dep, sdl2_dep, freetype_dep]
 
 executable(
     'elma',

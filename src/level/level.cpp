@@ -439,6 +439,7 @@ bool level_file_exists(const char* filename) {
 }
 
 char BestTime[30] = "";
+int BestTimeInt = 0;
 
 void load_best_time(const char* filename, int single) {
     if (strlen(filename) > 20) {
@@ -465,9 +466,10 @@ void load_best_time(const char* filename, int single) {
 
     // Write the best time or null string if no best time
     if (tten->times_count > 0) {
-        util::text::centiseconds_to_string(tten->times[0], BestTime);
+        BestTimeInt = tten->times[0];
+        util::text::centiseconds_to_string(BestTimeInt, BestTime);
     } else {
-        BestTime[0] = 0;
+        BestTimeInt = BestTime[0] = 0;
     }
 }
 

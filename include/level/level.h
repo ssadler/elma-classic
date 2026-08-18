@@ -92,6 +92,8 @@ bool level_file_exists(const char* filename);
 const char* get_internal_level_name(int index);
 
 extern char BestTime[30];
+extern int BestTimeInt;
+
 // Store the best time of the level to display while doing a run
 void load_best_time(const char* filename, int single);
 

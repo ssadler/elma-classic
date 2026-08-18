@@ -83,6 +83,9 @@ static int init_shaders() {
     glUseProgram(ShaderProgram);
     IndexTexLoc = glGetUniformLocation(ShaderProgram, "IndexTexture");
     glUniform1i(IndexTexLoc, 0);
+            
+    GLuint index = glGetUniformBlockIndex(ShaderProgram, "Palette");
+    glUniformBlockBinding(ShaderProgram, index, 0);
 
     return 0;
 }

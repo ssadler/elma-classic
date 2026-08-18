@@ -1,5 +1,6 @@
 
 #include "editor/editor.h"
+#include "eol/eol_types.h"
 #include "level/level.h"
 #include "level/object.h"
 #include "pic/anim.h"
@@ -83,7 +84,6 @@ static object_painter* init_painter(std::string name) {
     flat in int gravArrow;
     out vec4 FragColor;
     uniform usampler2D IndexTexture;
-    uniform usampler2D GravArrow;
 
 
     float sdBox(in vec2 p, in vec2 b) {
@@ -186,14 +186,14 @@ static void upload_verts(object::Type ty, object_painter* painter) {
 
 static std::array<uint64_t, 4> foods_cache = {};
 
-void check_upload_foods() {
+void check_upload_foods(const kuski* spy_kuski) {
 
     std::array<uint64_t, 4> c = {};
 
     for (int id=0; id<MAX_OBJECTS; id++) {
         auto pker = Level->objects[id];
         if (!pker) { break; }
-        if (pker->type != object::Type::Food) {
+        if (pker->type != object::Type::Food || (spy_kuski && spy_kuski->apples_taken[id])) {
             continue;
         }
         if (pker->active) {
@@ -213,7 +213,7 @@ void check_upload_foods() {
 lgr_texture_cache::cached_texture<pic8> GravArrowTex = {};
 
 
-GlLifecycle<> Objects = {
+gl_lifecycle<const kuski*> Objects = {
 
     .init = [] {
         Exit = init_painter("exit");
@@ -243,14 +243,14 @@ GlLifecycle<> Objects = {
 
         upload_verts(object::Type::Killer, Killer);
         upload_verts(object::Type::Exit, Exit);
-        check_upload_foods();
+        check_upload_foods(nullptr);
     },
 
-    .render = [] {
+    .render = [](const kuski* spy_kuski) {
 
         Exit->gfx.draw_instanced();
         Killer->gfx.draw_instanced();
-        check_upload_foods();
+        check_upload_foods(spy_kuski);
         Food->gfx.draw_instanced();
     }
 };

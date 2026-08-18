@@ -134,6 +134,9 @@ void Graphics::uniform1ui(const char* name, int value) const {
 void Graphics::uniform1f(const char* name, float value) const {
     glProgramUniform1f(program, glGetUniformLocation(program, name), value);
 }
+void Graphics::uniform4i(const char* name, int val0, int val1, int val2, int val3) const {
+    glProgramUniform4i(program, glGetUniformLocation(program, name), val0, val1, val2, val3);
+}
 void Graphics::uniform2f(const char* name, float val0, float val1) const {
     glProgramUniform2f(program, glGetUniformLocation(program, name), val0, val1);
 }
