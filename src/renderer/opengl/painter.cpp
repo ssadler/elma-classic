@@ -63,49 +63,44 @@ GLuint Graphics::_compile_shader() {
 }
 
 void Graphics::_compile_vao() {
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
+    int stride = get_stride();
+    size_t offset = 0;
 
-  int stride = get_stride();
-  size_t offset = 0;
+    for (auto [i, p]: enumerate(attribute_pointers)) {
 
-  // Bind the VBO to binding index 0 of the VAO
-  glVertexArrayVertexBuffer(vao, 0, vbo, 0, stride);
-
-  for (auto [i, p]: enumerate(attribute_pointers)) {
-        // Enable attribute i
-        glEnableVertexArrayAttrib(vao, i);
+        glEnableVertexAttribArray(i);
 
         // Describe format of attribute i
         if (p.attribType == AttribType::Int) {
-          glVertexArrayAttribIFormat(
-              vao,
-              i,
-              p.size,
-              p.type,
-              (GLuint)offset
-          );
+            glVertexAttribIPointer(
+                i,
+                p.size,
+                p.type,
+                stride,
+                (void*)offset
+            );
         } else {
-          glVertexArrayAttribFormat(
-              vao,
-              i,
-              p.size,
-              p.type,
-              p.attribType == AttribType::FloatNorm,
-              (GLuint)offset
-          );
+            glVertexAttribPointer(
+                i,
+                p.size,
+                p.type,
+                p.attribType == AttribType::FloatNorm,
+                stride,
+                (void*)offset
+            );
         }
 
-        // Link attribute i to binding index 0
-        glVertexArrayAttribBinding(vao, i, 0);
-    
+        // 1 when instanced otherwise 0
+        glVertexAttribDivisor(i, this->vertex_array_binding_divisor);
+
         auto s = p.type == GL_UNSIGNED_BYTE ? 1 : 4;
         offset += p.size * s;
-  }
+    }
 
-  glVertexArrayBindingDivisor(vao, 0, this->vertex_array_binding_divisor);
 }
 
 void Graphics::init_draw() {
@@ -116,6 +111,9 @@ void Graphics::init_draw() {
   for (auto [slot, texture] : textures) {
     glUniform1i(loc(texture.name), slot);
     glBindTextureUnit(slot, texture.texture);
+
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D, texture.texture);
   }
 
   glBindVertexArray(vao);

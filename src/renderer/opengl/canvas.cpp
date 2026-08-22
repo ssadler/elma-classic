@@ -228,8 +228,15 @@ static void render(canvas_painter* paint) {
 
     for (auto& group : paint->groups) {
 
-        int unit = group.tex_size[1] < 0; // 0 for 2D, 1 for 1D
-        glBindTextureUnit(unit, group.tex & 0xffff);
+        if (group.tex_size[1] <= 0) {
+            glBindTextureUnit(1, group.tex & 0xffff);
+
+            //glActiveTexture(GL_TEXTURE1);
+            //glBindTexture(GL_TEXTURE_BUFFER, group.tex & 0xffff);
+        } else {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, group.tex & 0xffff);
+        }
 
         paint->gfx.uniform2f("texSize", group.tex_size[0], group.tex_size[1]);
         glDrawArraysInstancedBaseInstance(GL_TRIANGLES, 0, 6, group.count, group.start);

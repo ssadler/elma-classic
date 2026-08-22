@@ -105,28 +105,19 @@ GLuint upload_picture_texture(const picture* pic) {
 
 
     GLuint buffer_id;
-    GL_DEBUG
     glGenBuffers(1, &buffer_id);
-    GL_DEBUG
     glBindBuffer(GL_TEXTURE_BUFFER, buffer_id);
-    GL_DEBUG
 
     glBufferData(GL_TEXTURE_BUFFER, pic->data_len, pic->data, GL_STATIC_DRAW);
-    GL_DEBUG
 
     GLuint tex_id;
     glGenTextures(1, &tex_id);
-    GL_DEBUG
     glBindTexture(GL_TEXTURE_BUFFER, tex_id);
-    GL_DEBUG
 
     glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, buffer_id);
-    GL_DEBUG
 
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
-    GL_DEBUG
     glBindTexture(GL_TEXTURE_BUFFER, 0);
-    GL_DEBUG
 
     return tex_id | (buffer_id << 16);
 }

@@ -27,7 +27,7 @@ static int  current_level_id = 0;
 
 static void init() {
     if (GlobalsVBO == 0) {
-        glCreateBuffers(1, &GlobalsVBO);
+        glGenBuffers(1, &GlobalsVBO);
 
         Canvas.init();
         Background.init();
@@ -113,6 +113,7 @@ void OpenGLRenderer::render_bike(bool has_flag, const motorst* mot,
 
 
 void OpenGLRenderer::render_back(bool) {
+    GL_DEBUG
     Background.render();
     GL_DEBUG
     Canvas.render(true);
