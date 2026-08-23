@@ -19,16 +19,18 @@ struct span_render_group {
     int count;
 };
 struct canvas_painter {
+    bool is_back;
     GraphicsProgram gfx;
     std::vector<span_render_group> groups;
+    bool loaded;
 };
 
 canvas_painter* Back = nullptr;
 canvas_painter* Front = nullptr;
 
-static canvas_painter* init_painter() {
+static canvas_painter* init_painter(bool is_back) {
 
-    auto paint = new canvas_painter{GraphicsProgram("canvas"), {}};
+    auto paint = new canvas_painter{is_back, GraphicsProgram("canvas"), {}};
     auto gfx = &paint->gfx;
 
     gfx->vert = R"(
@@ -132,7 +134,9 @@ static canvas_painter* init_painter() {
 }
 
 
-static void reload(canvas_painter* painter, canvas* canvas) {
+static void reload(canvas_painter* painter) {
+
+    auto canvas = painter->is_back ? CanvasBack : CanvasFront;
 
     painter->groups.clear();
 
@@ -217,11 +221,17 @@ static void reload(canvas_painter* painter, canvas* canvas) {
     for (auto& group : painter->groups) {
         group.vao.buffer_data(group.count, &spans[group.start], GL_STATIC_DRAW);
     }
+
+    painter->loaded = true;
 }
 
 
 
 static void render(canvas_painter* paint) {
+
+    if (!paint->loaded) {
+        reload(paint);
+    }
 
     paint->gfx.use();
     paint->gfx.uniform1i("tex", 0);
@@ -248,12 +258,16 @@ static void render(canvas_painter* paint) {
 
 gl_lifecycle<bool> Canvas = {
     .init = [] {
-        Back = init_painter();
-        Front = init_painter();
+        Back = init_painter(true);
+        Front = init_painter(false);
+    },
+    .on_lgr = [] {
+        Back->loaded = false;
+        Front->loaded = false;
     },
     .on_level = [] {
-        reload(Back, CanvasBack);
-        reload(Front, CanvasFront);
+        Back->loaded = false;
+        Front->loaded = false;
     },
     .render = [](bool is_back) {
         render(is_back ? Back : Front);

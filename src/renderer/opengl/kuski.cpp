@@ -89,35 +89,37 @@ struct KuskiTex {
     code(up_arm)                  \
     code(head)
 
-#define DEFINE_BIKE_PART(name) KuskiTex name;
-#define UPLOAD_BIKE_PART_TEX(name) dest.name = {upload_pic8_texture(src->name), tr};
-#define FREE_BIKE_PART_TEX(name) glDeleteTextures(1, &dest.name.tex);
 
 struct gl_bike_pics {
+#define DEFINE_BIKE_PART(name) KuskiTex name;
     APPLY_TO_BIKE_PARTS(DEFINE_BIKE_PART)
+#undef DEFINE_BIKE_PART
 };
 
 
-gl_bike_pics GlBike1 = {};
-gl_bike_pics GlBike2 = {};
-
-static std::unordered_map<const bike_pics*, gl_bike_pics> BikeTextures;
-static std::unordered_map<const pic8*, KuskiTex> Shirts;
-
-
 static void upload_bike_textures(const bike_pics* src, gl_bike_pics& dest) {
-    auto tr = src->wheel->gpixel(0, 0);
+
+#define UPLOAD_BIKE_PART_TEX(name) \
+    dest.name = {upload_pic8_texture(src->name), src->name->gpixel(0, 0)};
     APPLY_TO_BIKE_PARTS(UPLOAD_BIKE_PART_TEX);
+#undef UPLOAD_BIKE_PART_TEX
+
+    dest.bike_part2.transparency = dest.bike_part1.transparency;
+    dest.bike_part3.transparency = dest.bike_part1.transparency;
+    dest.bike_part4.transparency = dest.bike_part1.transparency;
 }
 
 static void free_bike_textures(gl_bike_pics& dest) {
+#define FREE_BIKE_PART_TEX(name) glDeleteTextures(1, &dest.name.tex);
     APPLY_TO_BIKE_PARTS(FREE_BIKE_PART_TEX);
+#undef FREE_BIKE_PART_TEX
 }
 
 #undef APPLY_TO_BIKE_PARTS
-#undef DEFINE_BIKE_PART
-#undef UPLOAD_BIKE_PART_TEX
-#undef FREE_BIKE_PART_TEX
+
+
+static std::unordered_map<const bike_pics*, gl_bike_pics> BikeTextures;
+static std::unordered_map<const pic8*, KuskiTex> Shirts;
 
 
 
@@ -250,6 +252,7 @@ void render_bike(RenderKuski k) {
     }
 
     KuskiTex shirt;
+
     if (k.shirt) {
         auto& s = Shirts[k.shirt];
         if (!s.tex) {
@@ -555,11 +558,13 @@ gl_lifecycle<RenderKuski> Kuski = {
         for (auto [_, tex] : BikeTextures) {
             free_bike_textures(tex);
         }
+        BikeTextures.clear();
     },
     .on_level = [] {
         for (auto [_, tex] : Shirts) {
             glDeleteTextures(1, &tex.tex);
         }
+        Shirts.clear();
     },
     .render = [](RenderKuski k) {
         render_bike(k);

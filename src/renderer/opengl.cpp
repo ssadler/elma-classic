@@ -38,6 +38,7 @@ static void init() {
     }
 
     if (strcmp(current_lgr_name, CurrentLgrName) != 0) {
+        printf("gl on LGR: %s\n", CurrentLgrName);
         memcpy(current_lgr_name, CurrentLgrName, 30);
 
         LgrTexture.invalidate();
