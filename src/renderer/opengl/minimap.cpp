@@ -1,6 +1,5 @@
 
 
-#include "pic/pic8.h"
 #include "renderer/opengl.h"
 #include "renderer/opengl_gfx.h"
 
@@ -24,9 +23,9 @@ void main() {
 
     pos /= vec2(screenSize);
 
-    gl_Position = vec4(-1 + pos.x * 2, -1 + pos.y * 2, 0, 1);
+    gl_Position = vec4(-1.0 + pos.x * 2.0, -1.0 + pos.y * 2.0, 0.0, 1.0);
 
-    fragTexCoord = vec2(-v.x, 1.0-v.y);
+    fragTexCoord = vec2(-v.x, 1.0 - v.y);
 }
 )";
 
@@ -55,7 +54,7 @@ gl_lifecycle<GLuint, int, int, int, int> GlMinimap = {
         gfx = new Graphics("minimap");
         gfx->set_vertex_shader(vert);
         gfx->set_fragment_shader(frag);
-        gfx->add_input_ints(2);
+        gfx->add_input_floats(2, false);
         gfx->compile();
         gfx->bind_uniform_block(0, "Palette");
         gfx->bind_uniform_block(1, "GlobalData");

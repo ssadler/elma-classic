@@ -78,12 +78,13 @@ inline lgr_texture_cache LgrTexture;
 
 struct shader_globals {
     float frustum[4];
-    float pixels_to_meters;
+    float canvas_pixels_to_meters;
     float time;
     int screen_size[2];
     unsigned int mins;
     unsigned int secs;
     unsigned int csecs;
+    float zoom_pixels_to_meters;
 };
 
 

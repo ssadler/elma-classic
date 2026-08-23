@@ -6,6 +6,7 @@
 #include "renderer/opengl.h"
 #include "renderer/opengl_gfx.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -38,12 +39,13 @@ static canvas_painter* init_painter(bool is_back) {
 
     layout(std140) uniform GlobalData {
         vec4 uFrustum;
-        float PixelsToMeters;
+        float CanvasPixelsToMeters;
         float time;
         ivec2 screenSize;
         int mins;
         int secs;
         int csecs;
+        float ZoomPixelsToMeters;
     };
 
     layout(location = 0) in ivec3 loc;
@@ -61,7 +63,7 @@ static canvas_painter* init_painter(bool is_back) {
 
     void main()
     {
-        float p2m = PixelsToMeters;
+        float p2m = CanvasPixelsToMeters;
         vec2 lo = vec2(loc.x, loc.y) * p2m + origin;
         vec2 hi = lo + vec2(loc.z, 1.0) * p2m;
 
@@ -96,12 +98,13 @@ static canvas_painter* init_painter(bool is_back) {
     #version 410 core
     layout(std140) uniform GlobalData {
         vec4 uFrustum;
-        float PixelsToMeters;
+        float CanvasPixelsToMeters;
         float time;
         ivec2 screenSize;
         int mins;
         int secs;
         int csecs;
+        float ZoomPixelsToMeters;
     };
     layout(std140) uniform Palette { vec4 palette[256]; };
 
@@ -143,7 +146,9 @@ static void reload(canvas_painter* painter) {
     auto& gfx = painter->gfx;
 
     auto origin = canvas->get_origin();
-    gfx.uniform2f("origin", float(origin.x), float(origin.y));
+    auto pixels_to_meters = PixelsToMeters;// * GL_ZOOM;
+    auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
+    gfx.uniform2f("origin", quantize(origin.x), quantize(origin.y));
 
 
     auto spans = canvas->export_spans();
@@ -184,7 +189,7 @@ static void reload(canvas_painter* painter) {
                 //printf("GRASS  %i\n", span.pic_id);
                 current->tex = cached.tex;
                 current->tex_size[0] = cached.obj->pic->get_width();
-                current->tex_size[1] = cached.obj->pic->get_height()+1;
+                current->tex_size[1] = cached.obj->pic->get_height();
             } else if (span.pic_id > 0xFFFF) {
                 GL_DEBUG
                 auto cached = LgrTexture.get_picture(span.pic_id & 0xFFFF);

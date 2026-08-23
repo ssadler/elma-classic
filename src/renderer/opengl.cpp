@@ -71,22 +71,19 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
     //printf("subview %i %i %i %i\n", left, bottom, right, top);
 
     auto pixels_to_meters = PixelsToMeters * GL_ZOOM;
-
-
     auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
 
     Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * pixels_to_meters);
     Globals.frustum[1] = quantize(center.y - SCREEN_HEIGHT/2.0 * pixels_to_meters);
-    Globals.frustum[2] = quantize(center.x + SCREEN_WIDTH/2.0 * pixels_to_meters);
-    Globals.frustum[3] = quantize(center.y + SCREEN_HEIGHT/2.0 * pixels_to_meters);
+    Globals.frustum[2] = Globals.frustum[0] + SCREEN_WIDTH * pixels_to_meters; //quantize(center.x + SCREEN_WIDTH/2.0 * pixels_to_meters);
+    Globals.frustum[3] = Globals.frustum[1] + SCREEN_HEIGHT * pixels_to_meters; // quantize(center.y + SCREEN_HEIGHT/2.0 * pixels_to_meters);
 
     Globals.screen_size[0] = SCREEN_WIDTH;
     Globals.screen_size[1] = SCREEN_HEIGHT;
 
-    Globals.pixels_to_meters = PixelsToMeters;
+    Globals.canvas_pixels_to_meters = PixelsToMeters;
+    Globals.zoom_pixels_to_meters = pixels_to_meters;
     Globals.time = time;
-
-    //printf("frustum %f %f %f %f\n", Globals.frustum[0], Globals.frustum[1], Globals.frustum[2], Globals.frustum[3]);
 
     glBindBuffer(GL_UNIFORM_BUFFER, GlobalsVBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(shader_globals), &Globals, GL_DYNAMIC_DRAW);

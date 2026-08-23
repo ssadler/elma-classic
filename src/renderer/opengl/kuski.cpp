@@ -67,55 +67,56 @@ void main() {
 }
 )";
 
+static bool FreeTextures = false;
 
 
 struct KuskiTex {
   GLuint tex;
   unsigned char transparency;
+  ~KuskiTex() {
+      if (FreeTextures) {
+          glDeleteTextures(1, &tex);
+      }
+  }
 };
-
-#define APPLY_TO_BIKE_PARTS(code) \
-    code(bike_part1)              \
-    code(bike_part2)              \
-    code(bike_part3)              \
-    code(bike_part4)              \
-    code(body)                    \
-    code(thigh)                   \
-    code(leg)                     \
-    code(wheel)                   \
-    code(susp1)                   \
-    code(susp2)                   \
-    code(forarm)                  \
-    code(up_arm)                  \
-    code(head)
 
 
 struct gl_bike_pics {
-#define DEFINE_BIKE_PART(name) KuskiTex name;
-    APPLY_TO_BIKE_PARTS(DEFINE_BIKE_PART)
-#undef DEFINE_BIKE_PART
+    KuskiTex bike_part1;
+    KuskiTex bike_part2;
+    KuskiTex bike_part3;
+    KuskiTex bike_part4;
+    KuskiTex body;
+    KuskiTex thigh;
+    KuskiTex leg;
+    KuskiTex wheel;
+    KuskiTex susp1;
+    KuskiTex susp2;
+    KuskiTex forarm;
+    KuskiTex up_arm;
+    KuskiTex head;
+
+    void init(const bike_pics* src) {
+        if (bike_part1.tex != 0) {
+            return;
+        }
+
+        bike_part1 = { upload_pic8_texture(src->bike_part1), src->bike_part1->gpixel(0, 0) };
+        bike_part2 = { upload_pic8_texture(src->bike_part2), bike_part1.transparency };
+        bike_part3 = { upload_pic8_texture(src->bike_part3), bike_part1.transparency };
+        bike_part4 = { upload_pic8_texture(src->bike_part4), bike_part1.transparency };
+        body       = { upload_pic8_texture(src->body),       src->body->gpixel(0, 0) };
+        thigh      = { upload_pic8_texture(src->thigh),      src->thigh->gpixel(0, 0) };
+        leg        = { upload_pic8_texture(src->leg),        src->leg->gpixel(0, 0) };
+        wheel      = { upload_pic8_texture(src->wheel),      src->wheel->gpixel(0, 0) };
+        susp1      = { upload_pic8_texture(src->susp1),      src->susp1->gpixel(0, 0) };
+        susp2      = { upload_pic8_texture(src->susp2),      src->susp2->gpixel(0, 0) };
+        forarm     = { upload_pic8_texture(src->forarm),     src->forarm->gpixel(0, 0) };
+        up_arm     = { upload_pic8_texture(src->up_arm),     src->up_arm->gpixel(0, 0) };
+        head       = { upload_pic8_texture(src->head),       src->head->gpixel(0, 0) };
+    }
 };
 
-
-static void upload_bike_textures(const bike_pics* src, gl_bike_pics& dest) {
-
-#define UPLOAD_BIKE_PART_TEX(name) \
-    dest.name = {upload_pic8_texture(src->name), src->name->gpixel(0, 0)};
-    APPLY_TO_BIKE_PARTS(UPLOAD_BIKE_PART_TEX);
-#undef UPLOAD_BIKE_PART_TEX
-
-    dest.bike_part2.transparency = dest.bike_part1.transparency;
-    dest.bike_part3.transparency = dest.bike_part1.transparency;
-    dest.bike_part4.transparency = dest.bike_part1.transparency;
-}
-
-static void free_bike_textures(gl_bike_pics& dest) {
-#define FREE_BIKE_PART_TEX(name) glDeleteTextures(1, &dest.name.tex);
-    APPLY_TO_BIKE_PARTS(FREE_BIKE_PART_TEX);
-#undef FREE_BIKE_PART_TEX
-}
-
-#undef APPLY_TO_BIKE_PARTS
 
 
 static std::unordered_map<const bike_pics*, gl_bike_pics> BikeTextures;
@@ -180,7 +181,7 @@ static void render_part(vect2 u, vect2 v, vect2 r) {
     GL_DEBUG
 }
 
-static void render_frame_part(KuskiTex tex, bike_box* box) {
+static void render_frame_part(KuskiTex& tex, bike_box* box) {
 
     vect2 u = BikeFrameI * (box->x2 - box->x1);
     vect2 v = BikeFrameJ * (box->y1 - box->y2);
@@ -202,7 +203,7 @@ static void render_frame_part(KuskiTex tex, bike_box* box) {
 // Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
 // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
 // height represents the vertical length of the affine_pic (thickness of the limb)
-static void render_body_part(KuskiTex tex, vect2 a, vect2 b, double height,
+static void render_body_part(KuskiTex& tex, vect2 a, vect2 b, double height,
                              double a_stretch, double b_stretch, bool flip) {
 
     vect2 i = unit_vector(b - a);
@@ -224,7 +225,7 @@ static void render_body_part(KuskiTex tex, vect2 a, vect2 b, double height,
     GL_DEBUG
 }
 
-static void render_rigid_part(KuskiTex tex, vect2 r, double radius, double rotation, bool flip) {
+static void render_rigid_part(KuskiTex& tex, vect2 r, double radius, double rotation, bool flip) {
     float rad = flip ? -radius : radius;
     vect2 direction(cos(rotation) * rad, sin(rotation) * rad);
     render_body_part(tex, r - direction, r + direction, radius, 0.0, 0.0, flip);
@@ -247,11 +248,9 @@ void render_bike(RenderKuski k) {
     auto has_flag = k.has_flag;
 
     auto& texs = BikeTextures[k.bike];
-    if (texs.bike_part1.tex == 0) {
-        upload_bike_textures(k.bike, texs);
-    }
+    texs.init(k.bike);
 
-    KuskiTex shirt;
+    KuskiTex& shirt = texs.body;
 
     if (k.shirt) {
         auto& s = Shirts[k.shirt];
@@ -259,8 +258,6 @@ void render_bike(RenderKuski k) {
             s = {upload_pic8_texture(k.shirt), k.shirt->gpixel(0, 0)};
         }
         shirt = s;
-    } else {
-        shirt = texs.body;
     }
 
 
@@ -555,16 +552,14 @@ GLuint compile_program(const char* vert, const char* frag) {
 gl_lifecycle<RenderKuski> Kuski = {
     .init = init,
     .on_lgr = [] {
-        for (auto [_, tex] : BikeTextures) {
-            free_bike_textures(tex);
-        }
+        FreeTextures = true;
         BikeTextures.clear();
+        FreeTextures = false;
     },
     .on_level = [] {
-        for (auto [_, tex] : Shirts) {
-            glDeleteTextures(1, &tex.tex);
-        }
+        FreeTextures = true;
         Shirts.clear();
+        FreeTextures = false;
     },
     .render = [](RenderKuski k) {
         render_bike(k);

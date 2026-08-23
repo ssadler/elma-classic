@@ -47,6 +47,7 @@ void reset_game_background() { GameBackgroundRender = true; }
 void increase_view_size() {
     if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
         GL_ZOOM /= 1.1;
+        //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
     VisibleFraction *= VISIBLE_FRACTION_SCALING_FACTOR;
@@ -59,6 +60,7 @@ void increase_view_size() {
 void decrease_view_size() {
     if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
         GL_ZOOM *= 1.1;
+        //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
     VisibleFraction /= VISIBLE_FRACTION_SCALING_FACTOR;
