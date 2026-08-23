@@ -100,6 +100,7 @@ elma_sources = files(
     'src/sound/wav.cpp',
     'src/util/file_iter.cpp',
     'src/util/util.cpp',
+    'src/util/stb_image.cpp',
     'src/vect2.cpp',
 )
 

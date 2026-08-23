@@ -1,11 +1,11 @@
 #include <iostream>
 #include <map>
-#if defined(_WIN32)
+//#if defined(_WIN32)
 #define LOAD_FONT_SIZE load_font_size_h
-#else
-#define FT_LOAD 1
-#define LOAD_FONT_SIZE load_font_size_ft
-#endif
+//#else
+//#define FT_LOAD 1
+//#define LOAD_FONT_SIZE load_font_size_ft
+//#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -17,8 +17,8 @@
 #include "stb_image.h"
 
 #ifndef FT_LOAD
-#include "../build/font_atlas.h"
-#include "../build/font_ranges.h"
+#include "include/font_atlas.h"
+#include "include/font_ranges.h"
 #endif
 
 
