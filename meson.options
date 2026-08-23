@@ -2,4 +2,4 @@ option('profile_performance', type : 'boolean', value : false, description: 'ena
 
 option('static_sdl', type : 'boolean', value : false, description: 'link SDL statically')
 
-option('no_freetype', type : 'boolean', value : false, description: 'build with glyph atlases')
+option('no_freetype', type : 'boolean', value : true, description: 'build with glyph atlases')
