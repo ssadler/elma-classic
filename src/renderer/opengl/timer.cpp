@@ -77,7 +77,7 @@ void drawColon(vec2 refPos) {
     }
 }
 
-void drawDigit(vec2 refPos, uint mask) {
+void drawDigit(vec2 refPos, int mask) {
 
     refPos += vec2(0.5);
 

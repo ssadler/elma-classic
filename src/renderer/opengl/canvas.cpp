@@ -39,9 +39,9 @@ static canvas_painter* init_painter() {
         float PixelsToMeters;
         float time;
         ivec2 screenSize;
-        uint mins;
-        uint secs;
-        uint csecs;
+        int mins;
+        int secs;
+        int csecs;
     };
 
     layout(location = 0) in ivec3 loc;
@@ -97,9 +97,9 @@ static canvas_painter* init_painter() {
         float PixelsToMeters;
         float time;
         ivec2 screenSize;
-        uint mins;
-        uint secs;
-        uint csecs;
+        int mins;
+        int secs;
+        int csecs;
     };
     layout(std140) uniform Palette { vec4 palette[256]; };
 
@@ -239,7 +239,6 @@ static void render(canvas_painter* paint) {
             glBindTexture(GL_TEXTURE_2D, group.tex & 0xffff);
         }
 
-        //glDrawArraysInstancedBaseInstance(GL_TRIANGLES, 0, 6, group.count, group.start);
         group.vao.bind();
         glDrawArraysInstanced(GL_TRIANGLES, 0, 6, group.count);
     }

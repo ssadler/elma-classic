@@ -28,9 +28,9 @@ static void init() {
             float PixelsToMeters;
             float time;
             ivec2 screenSize;
-            uint mins;
-            uint secs;
-            uint csecs;
+            int mins;
+            int secs;
+            int csecs;
         };
         layout(location = 0) in float loc;
         uniform vec2 texSize;
@@ -62,9 +62,9 @@ static void init() {
             float PixelsToMeters;
             float time;
             ivec2 screenSize;
-            uint mins;
-            uint secs;
-            uint csecs;
+            int mins;
+            int secs;
+            int csecs;
         };
 
         in vec2 uv;
