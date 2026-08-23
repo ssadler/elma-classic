@@ -1705,7 +1705,6 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
 
     auto add_span = [&](int x, int y, canvas_chunk* span) {
 
-
         if (span->pixels == canvas_pixels::default_foreground()) {
                 //printf("fore  %i:%i   %i\n", x, y, span->width);
             //spans.emplace_back(x, y, span->width, 0, 0, -1);

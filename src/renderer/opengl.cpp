@@ -2,6 +2,7 @@
 #include "SDL_video.h"
 #include "editor/editor.h"
 #include "game/driver.h"
+#include "game/game.h"
 #include "level/level.h"
 #include "physics/init.h"
 #include "pic/lgr.h"
@@ -68,12 +69,15 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
 
     //printf("subview %i %i %i %i\n", left, bottom, right, top);
 
-    auto quantize = [](float f) { return std::floor(f * MetersToPixels) * PixelsToMeters; };
+    auto pixels_to_meters = PixelsToMeters * GL_ZOOM;
 
-    Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * PixelsToMeters);
-    Globals.frustum[1] = quantize(center.y - SCREEN_HEIGHT/2.0 * PixelsToMeters);
-    Globals.frustum[2] = quantize(center.x + SCREEN_WIDTH/2.0 * PixelsToMeters);
-    Globals.frustum[3] = quantize(center.y + SCREEN_HEIGHT/2.0 * PixelsToMeters);
+
+    auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
+
+    Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * pixels_to_meters);
+    Globals.frustum[1] = quantize(center.y - SCREEN_HEIGHT/2.0 * pixels_to_meters);
+    Globals.frustum[2] = quantize(center.x + SCREEN_WIDTH/2.0 * pixels_to_meters);
+    Globals.frustum[3] = quantize(center.y + SCREEN_HEIGHT/2.0 * pixels_to_meters);
 
     Globals.screen_size[0] = SCREEN_WIDTH;
     Globals.screen_size[1] = SCREEN_HEIGHT;

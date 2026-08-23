@@ -25,6 +25,8 @@ struct camera {
     double max_y;
 };
 
+inline float GL_ZOOM = 1.0;
+
 int game_loop(const char* filename, CameraMode camera_mode);
 int replay_loop(const char* filename, bool restore_player_visibility);
 

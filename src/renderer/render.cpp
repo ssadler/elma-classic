@@ -45,6 +45,10 @@ constexpr double VISIBLE_FRACTION_SCALING_FACTOR = 1.1;
 void reset_game_background() { GameBackgroundRender = true; }
 
 void increase_view_size() {
+    if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
+        GL_ZOOM /= 1.1;
+        return;
+    }
     VisibleFraction *= VISIBLE_FRACTION_SCALING_FACTOR;
     if (VisibleFraction >= 0.999) {
         VisibleFraction = 1.0;
@@ -53,6 +57,10 @@ void increase_view_size() {
 }
 
 void decrease_view_size() {
+    if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
+        GL_ZOOM *= 1.1;
+        return;
+    }
     VisibleFraction /= VISIBLE_FRACTION_SCALING_FACTOR;
     if (VisibleFraction < 0.7) {
         VisibleFraction = 0.7;

@@ -3,8 +3,6 @@
 
 #include <cstring>
 #include <string>
-#include <regex>
-#include <string_view>
 #include <string>
 
 #include "renderer/opengl.h"
@@ -12,60 +10,16 @@
 
 
 
-void Graphics::compile() {
-  if (program) {
-    internal_error("Graphics::compile: already compiled");
-  }
-
-  std::string name = this->name;
-  program = _compile_shader();
-
-  if (program == -1) {
-    internal_error("Graphics::compile: failed creating program");
-  }
-  _compile_vao();
-}
-
-GLuint Graphics::_compile_shader() {
 
 
-  if (frag.empty()) {
-    internal_error("Graphics::compile: frag empty");
-  }
-  if (vert.empty()) {
-    internal_error("Graphics::compile: vert empty");
-  }
-  if (attribute_pointers.empty()) {
-    internal_error("Graphics::compile: attribute pointers not set");
-  }
+void GraphicsVAO::compile() {
 
-  auto prog = _compile_program();
-  if (!prog) {
-    exit(1);
-  }
-
-  auto set_locations = [this](const char* source) {
-    std::match_results<std::string_view::const_iterator> match;
-    std::regex re(R"(layout ?\(location ?= (\d+)?\) (\w+) \w+ (\w+))");
-
-    const char* end = std::strchr(source, 0);
-
-    while (std::regex_search(source, end, match, re)) {
-      _locations[match[3].str()] = std::stoi(match[1].first);
-      source = match[0].second;
+    if (attribute_pointers.empty()) {
+        internal_error("GraphicsVAO::compile: attribute pointers not set");
     }
-  };
 
-  set_locations(vert.c_str());
-  set_locations(frag.c_str());
-
-  return prog;
-}
-
-void Graphics::_compile_vao() {
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindVertexArray(vao.get());
+    glBindBuffer(GL_ARRAY_BUFFER, vbo.get());
 
     int stride = get_stride();
     size_t offset = 0;
@@ -76,22 +30,10 @@ void Graphics::_compile_vao() {
 
         // Describe format of attribute i
         if (p.attribType == AttribType::Int) {
-            glVertexAttribIPointer(
-                i,
-                p.size,
-                p.type,
-                stride,
-                (void*)offset
-            );
+            glVertexAttribIPointer(i, p.size, p.type, stride, (void*)offset);
         } else {
-            glVertexAttribPointer(
-                i,
-                p.size,
-                p.type,
-                p.attribType == AttribType::FloatNorm,
-                stride,
-                (void*)offset
-            );
+            auto norm = p.attribType == AttribType::FloatNorm;
+            glVertexAttribPointer(i, p.size, p.type, norm, stride, (void*)offset);
         }
 
         // 1 when instanced otherwise 0
@@ -105,114 +47,115 @@ void Graphics::_compile_vao() {
 
 void Graphics::init_draw() {
 
-  glUseProgram(program);
+    program.use();
 
-  for (auto& cb : draw_cbs) { cb(); }
-  for (auto [slot, texture] : textures) {
-    glUniform1i(loc(texture.name), slot);
-    glBindTextureUnit(slot, texture.texture);
-
-    glActiveTexture(GL_TEXTURE0 + slot);
-    glBindTexture(GL_TEXTURE_2D, texture.texture);
-  }
-
-  glBindVertexArray(vao);
-}
-
-
-
-
-
-void Graphics::uniform1i(const char* name, int value) const {
-    glProgramUniform1i(program, glGetUniformLocation(program, name), value);
-}
-void Graphics::uniform1ui(const char* name, int value) const {
-    glProgramUniform1ui(program, glGetUniformLocation(program, name), value);
-}
-void Graphics::uniform1f(const char* name, float value) const {
-    glProgramUniform1f(program, glGetUniformLocation(program, name), value);
-}
-void Graphics::uniform4i(const char* name, int val0, int val1, int val2, int val3) const {
-    glProgramUniform4i(program, glGetUniformLocation(program, name), val0, val1, val2, val3);
-}
-void Graphics::uniform2f(const char* name, float val0, float val1) const {
-    glProgramUniform2f(program, glGetUniformLocation(program, name), val0, val1);
-}
-void Graphics::uniform3f(const char* name, float val0, float val1, float val2) const {
-    glProgramUniform3f(program, glGetUniformLocation(program, name), val0, val1, val2);
-}
-void Graphics::uniform4f(const char* name, float val0, float val1, float val2, float val3) const {
-    glProgramUniform4f(program, glGetUniformLocation(program, name), val0, val1, val2, val3);
-}
-void Graphics::uniform4f(const char* name, float vals[4]) const {
-    glProgramUniform4f(program, glGetUniformLocation(program, name), vals[0], vals[1], vals[2], vals[3]);
-}
-void Graphics::uniform2fv(const char* name, size_t count, const float* data) const {
-    glProgramUniform2fv(program, glGetUniformLocation(program, name), count, data);
-}
-
-void Graphics::uniform_matrix_3fv(const char* name, size_t count, bool normalize, const float* data) const {
-    auto loc = glGetUniformLocation(program, name);
-    glProgramUniformMatrix3fv(program, loc, count, normalize, data);
-}
-
-
-
-
-
-
-
-GLuint Graphics::_compile_program() const {
-
-  auto compile_shader = [&](GLenum type, const char* source) {
-    GLuint shader = glCreateShader(type);
-    if (shader == 0) {
-      printf("OpenGL internal error creating shader\n");
-      return GLuint(0);
+    for (auto [slot, texture] : textures) {
+        glUniform1i(glGetUniformLocation(program.program.get(), texture.name), slot);
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(GL_TEXTURE_2D, texture.texture);
     }
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
+
+    vao.bind();
+}
+
+
+
+
+
+void GraphicsProgramCommon::uniform1i(const char* name, int value) const {
+    glProgramUniform1i(prog(), glGetUniformLocation(prog(), name), value);
+}
+void GraphicsProgramCommon::uniform1ui(const char* name, int value) const {
+    glProgramUniform1ui(prog(), glGetUniformLocation(prog(), name), value);
+}
+void GraphicsProgramCommon::uniform1f(const char* name, float value) const {
+    glProgramUniform1f(prog(), glGetUniformLocation(prog(), name), value);
+}
+void GraphicsProgramCommon::uniform4i(const char* name, int val0, int val1, int val2, int val3) const {
+    glProgramUniform4i(prog(), glGetUniformLocation(prog(), name), val0, val1, val2, val3);
+}
+void GraphicsProgramCommon::uniform2f(const char* name, float val0, float val1) const {
+    glProgramUniform2f(prog(), glGetUniformLocation(prog(), name), val0, val1);
+}
+void GraphicsProgramCommon::uniform3f(const char* name, float val0, float val1, float val2) const {
+    glProgramUniform3f(prog(), glGetUniformLocation(prog(), name), val0, val1, val2);
+}
+void GraphicsProgramCommon::uniform4f(const char* name, float val0, float val1, float val2, float val3) const {
+    glProgramUniform4f(prog(), glGetUniformLocation(prog(), name), val0, val1, val2, val3);
+}
+void GraphicsProgramCommon::uniform4f(const char* name, float vals[4]) const {
+    glProgramUniform4f(prog(), glGetUniformLocation(prog(), name), vals[0], vals[1], vals[2], vals[3]);
+}
+void GraphicsProgramCommon::uniform2fv(const char* name, size_t count, const float* data) const {
+    glProgramUniform2fv(prog(), glGetUniformLocation(prog(), name), count, data);
+}
+
+void GraphicsProgramCommon::uniform_matrix_3fv(
+        const char* name, size_t count, bool normalize, const float* data) const {
+    auto loc = glGetUniformLocation(prog(), name);
+    glProgramUniformMatrix3fv(prog(), loc, count, normalize, data);
+}
+
+
+
+
+
+
+
+void GraphicsProgram::compile() {
 
     GLint success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-      char infoLog[512];
-      glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-      printf(
-        "%s shader compilation failed in %s:\n%s\n\n", 
-        (type == GL_VERTEX_SHADER ? "Vertex" : "Fragment"),
-        name.c_str(), infoLog
-      );
-      glDeleteShader(shader);
-      return GLuint(0);
+    glGetProgramiv(program.get(), GL_LINK_STATUS, &success);
+    if (success) {
+        internal_error("Graphics::compile: already compiled");
     }
-    return shader;
-  };
 
-  GLuint vertexShader = compile_shader(GL_VERTEX_SHADER, vert.c_str());
-  GLuint fragmentShader = compile_shader(GL_FRAGMENT_SHADER, frag.c_str());
+    if (frag.empty()) {
+        internal_error("Graphics::compile: frag empty");
+    }
+    if (vert.empty()) {
+        internal_error("Graphics::compile: vert empty");
+    }
 
-  if (!vertexShader || !fragmentShader) {
-      return GLuint(0);
-  }
+    auto compile_shader = [&](GLenum type, const char* source) {
+        GLuint shader = glCreateShader(type);
+        if (shader == 0) {
+            printf("OpenGL internal error creating shader\n");
+            return GLuint(0);
+        }
+        glShaderSource(shader, 1, &source, nullptr);
+        glCompileShader(shader);
 
-  GLuint ShaderProgram = glCreateProgram();
-  glAttachShader(ShaderProgram, vertexShader);
-  glAttachShader(ShaderProgram, fragmentShader);
-  glLinkProgram(ShaderProgram);
+        GLint success;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+        if (!success) {
+            char infoLog[512];
+            glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+            printf(
+                "%s shader compilation failed in %s:\n%s\n\n", 
+                (type == GL_VERTEX_SHADER ? "Vertex" : "Fragment"),
+                name.c_str(), infoLog
+            );
+            glDeleteShader(shader);
+            exit(1);
+        }
+        return shader;
+    };
 
-  GLint success;
-  glGetProgramiv(ShaderProgram, GL_LINK_STATUS, &success);
-  if (!success) {
-    char infoLog[512];
-    glGetProgramInfoLog(ShaderProgram, 512, nullptr, infoLog);
-    printf("Shader linking failed in %s:\n%s\n\n", name.c_str(), infoLog);
-    glDeleteProgram(ShaderProgram);
-    return GLuint(0);
-  }
+    GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, vert.c_str());
+    GLuint fragment_shader = compile_shader(GL_FRAGMENT_SHADER, frag.c_str());
 
-  glDeleteShader(vertexShader);
-  glDeleteShader(fragmentShader);
+    glAttachShader(program.get(), vertex_shader);
+    glAttachShader(program.get(), fragment_shader);
+    glLinkProgram(program.get());
 
-  return ShaderProgram;
+    glGetProgramiv(program.get(), GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program.get(), 512, nullptr, infoLog);
+        printf("Shader linking failed in %s:\n%s\n\n", name.c_str(), infoLog);
+        glDeleteProgram(program.get());
+        exit(1);
+    }
 }
+

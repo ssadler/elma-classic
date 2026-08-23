@@ -7,17 +7,19 @@
 #include "renderer/opengl_gfx.h"
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 
 struct span_render_group {
+    GraphicsVAO vao;
     GLuint tex;
     float tex_size[2];
     int start;
     int count;
 };
 struct canvas_painter {
-    Graphics gfx;
+    GraphicsProgram gfx;
     std::vector<span_render_group> groups;
 };
 
@@ -26,16 +28,17 @@ canvas_painter* Front = nullptr;
 
 static canvas_painter* init_painter() {
 
-    auto paint = new canvas_painter{Graphics("canvas"), {}};
+    auto paint = new canvas_painter{GraphicsProgram("canvas"), {}};
     auto gfx = &paint->gfx;
 
-    gfx->set_vertex_shader(R"(
+    gfx->vert = R"(
     #version 410 core
 
     layout(std140) uniform GlobalData {
         vec4 uFrustum;
         float PixelsToMeters;
         float time;
+        ivec2 screenSize;
         uint mins;
         uint secs;
         uint csecs;
@@ -50,8 +53,8 @@ static canvas_painter* init_painter() {
     out vec2 uv;
 
     const vec2 verts[6] = vec2[](
-            vec2(0,0), vec2(1,0), vec2(1,1),
-            vec2(0,0), vec2(1,1), vec2(0,1)
+        vec2(0,0), vec2(1,0), vec2(1,1),
+        vec2(0,0), vec2(1,1), vec2(0,1)
     );
 
     void main()
@@ -85,14 +88,15 @@ static canvas_painter* init_painter() {
         }
 
     }
-    )");
+    )";
 
-    auto frag = std::string(R"(
+    gfx->frag = std::string(R"(
     #version 410 core
     layout(std140) uniform GlobalData {
         vec4 uFrustum;
         float PixelsToMeters;
         float time;
+        ivec2 screenSize;
         uint mins;
         uint secs;
         uint csecs;
@@ -118,13 +122,10 @@ static canvas_painter* init_painter() {
     }
     )";
 
-    gfx->set_fragment_shader(frag.c_str());
-    gfx->add_input_ints(3);
-    gfx->add_input_ints(3);
-    gfx->vertex_array_binding_divisor = 1;
     gfx->compile();
     gfx->bind_uniform_block(0, "Palette");
     gfx->bind_uniform_block(1, "GlobalData");
+
 
 
     return paint;
@@ -151,10 +152,6 @@ static void reload(canvas_painter* painter, canvas* canvas) {
         }
     );
 
-    GL_DEBUG
-    gfx.buffer_data(spans.size(), spans.data(), GL_STATIC_DRAW);
-    GL_DEBUG
-
 
     span_render_group* current;
     int last_pic = -0xFFFFFFF;
@@ -166,26 +163,30 @@ static void reload(canvas_painter* painter, canvas* canvas) {
 
         if (span.pic_id != last_pic) {
             last_pic = span.pic_id;
-            printf("group id: %li\n", painter->groups.size());
+            //printf("group id: %li\n", painter->groups.size());
 
-            painter->groups.push_back({});
+            painter->groups.emplace_back();
             current = &painter->groups.back();
             current->start = i;
+            current->vao.add_input_ints(3);
+            current->vao.add_input_ints(3);
+            current->vao.vertex_array_binding_divisor = 1;
+            current->vao.compile();
 
             if (span.pic_id > 0xFFFFF) {
                 GL_DEBUG
                 auto cached = LgrTexture.get_qupdown(span.pic_id & 0xFFFFF);
                 GL_DEBUG
-                printf("GRASS  %i\n", span.pic_id);
+                //printf("GRASS  %i\n", span.pic_id);
                 current->tex = cached.tex;
                 current->tex_size[0] = cached.obj->pic->get_width();
-                current->tex_size[1] = cached.obj->pic->get_height();
+                current->tex_size[1] = cached.obj->pic->get_height()+1;
             } else if (span.pic_id > 0xFFFF) {
                 GL_DEBUG
                 auto cached = LgrTexture.get_picture(span.pic_id & 0xFFFF);
-                auto pic = cached.obj;
+                //auto pic = cached.obj;
                 GL_DEBUG
-                printf("PIC %s  %i      %li\n", pic->name, span.pic_id & 0xFFFF, pic->data_len);
+                //printf("PIC %s  %i      %li\n", pic->name, span.pic_id & 0xFFFF, pic->data_len);
                 current->tex = cached.tex;
                 current->tex_size[0] = cached.obj->data_len;
                 current->tex_size[1] = -1;
@@ -193,8 +194,8 @@ static void reload(canvas_painter* painter, canvas* canvas) {
                 GL_DEBUG
                 auto cached = LgrTexture.get_texture(span.pic_id);
                 GL_DEBUG
-                auto pic = cached.obj;
-                printf("TEX %s    %i\n", pic->name, span.pic_id);
+                //auto pic = cached.obj;
+                //printf("TEX %s    %i\n", pic->name, span.pic_id);
                 current->tex = cached.tex;
                 current->tex_size[0] = cached.obj->pic->get_width();
                 current->tex_size[1] = cached.obj->pic->get_height();
@@ -213,33 +214,34 @@ static void reload(canvas_painter* painter, canvas* canvas) {
         current->count++;
     }
 
-    //for (auto& group : painter->groups) {
-    //    printf("%i %i    tex:%i\n", group.start, group.count, group.tex);
-    //}
+    for (auto& group : painter->groups) {
+        group.vao.buffer_data(group.count, &spans[group.start], GL_STATIC_DRAW);
+    }
 }
 
 
 
 static void render(canvas_painter* paint) {
 
-    paint->gfx.init_draw();
+    paint->gfx.use();
     paint->gfx.uniform1i("tex", 0);
     paint->gfx.uniform1i("sprite", 1);
 
     for (auto& group : paint->groups) {
 
-        if (group.tex_size[1] <= 0) {
-            glBindTextureUnit(1, group.tex & 0xffff);
+        paint->gfx.uniform2f("texSize", group.tex_size[0], group.tex_size[1]);
 
-            //glActiveTexture(GL_TEXTURE1);
-            //glBindTexture(GL_TEXTURE_BUFFER, group.tex & 0xffff);
+        if (group.tex_size[1] <= 0) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_BUFFER, group.tex & 0xffff);
         } else {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, group.tex & 0xffff);
         }
 
-        paint->gfx.uniform2f("texSize", group.tex_size[0], group.tex_size[1]);
-        glDrawArraysInstancedBaseInstance(GL_TRIANGLES, 0, 6, group.count, group.start);
+        //glDrawArraysInstancedBaseInstance(GL_TRIANGLES, 0, 6, group.count, group.start);
+        group.vao.bind();
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, group.count);
     }
 }
 

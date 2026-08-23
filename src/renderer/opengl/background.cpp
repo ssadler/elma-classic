@@ -27,6 +27,7 @@ static void init() {
             vec4 uFrustum;
             float PixelsToMeters;
             float time;
+            ivec2 screenSize;
             uint mins;
             uint secs;
             uint csecs;
@@ -60,6 +61,7 @@ static void init() {
             vec4 uFrustum;
             float PixelsToMeters;
             float time;
+            ivec2 screenSize;
             uint mins;
             uint secs;
             uint csecs;
