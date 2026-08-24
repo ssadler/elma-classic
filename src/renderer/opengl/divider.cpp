@@ -8,15 +8,15 @@
 #include <cstring>
 
 
-static Graphics* BG = nullptr;
+static Graphics* Divider = nullptr;
 
 static void init() {
-    if (BG == nullptr) {
-        BG = new Graphics("bg");
-        BG->add_input_floats(1, false);
-        BG->vertex_array_binding_divisor = 1;
+    if (Divider == nullptr) {
+        Divider = new Graphics("divider");
+        Divider->add_input_floats(1, false);
+        Divider->vertex_array_binding_divisor = 1;
 
-        BG->set_vertex_shader(R"(
+        Divider->set_vertex_shader(R"(
         #version 410 core
 
         layout(std140) uniform GlobalData {
@@ -24,9 +24,6 @@ static void init() {
             float PixelsToMeters;
             float time;
             ivec2 screenSize;
-            int mins;
-            int secs;
-            int csecs;
         };
         layout(location = 0) in float loc;
         uniform vec2 texSize;
@@ -41,12 +38,14 @@ static void init() {
         void main()
         {
             vec2 v = verts[gl_VertexID];
-            vec2 pos = uFrustum.xy * v + uFrustum.zw * (vec2(1.0)-v);
 
-            uv = pos / (texSize * PixelsToMeters);
+            float x = v.x;
+            float y = (12.0 / screenSize.y);   // 12 pixels
+            y = y - y / 2 + 0.5;               // centered
+            y = v.y;
+            gl_Position = vec4(-1.0 + x * 2.0, -1.0 + y * 2.0, 0.0, 1.0);
 
-            vec2 p = (pos - uFrustum.xy) / (uFrustum.zw - uFrustum.xy);
-            gl_Position = vec4(-1.0 + p.x * 2.0, -1.0 + p.y * 2.0, 0.0, 1.0);
+            uv = v * (vec2(screenSize) / texSize);
         }
         )");
 
@@ -58,46 +57,39 @@ static void init() {
             float PixelsToMeters;
             float time;
             ivec2 screenSize;
-            int mins;
-            int secs;
-            int csecs;
         };
 
         in vec2 uv;
         uniform usampler2D tex;
         out vec4 FragColor;
 
-        )") + TimerGLSL + R"(
-
         void main() {
             uint index = texture(tex, uv).r;
             FragColor = palette[index];
-
-            drawTimer();
         }
-        )";
+        )");
 
-        BG->set_fragment_shader(vert.c_str());
+        Divider->set_fragment_shader(vert.c_str());
 
-        BG->compile();
-        BG->bind_uniform_block(0, "Palette");
-        BG->bind_uniform_block(1, "GlobalData");
+        Divider->compile();
+        Divider->bind_uniform_block(0, "Palette");
+        Divider->bind_uniform_block(1, "GlobalData");
 
         float dummy = 0.0;
-        BG->buffer_data(1, &dummy, GL_STATIC_DRAW);
+        Divider->buffer_data(1, &dummy, GL_STATIC_DRAW);
     }
 }
 
 
 
-gl_lifecycle<> Background = {
+gl_lifecycle<> GlDivider = {
     .init = &init,
     .on_lgr = []() {
-        auto pic = LgrTexture.get_texture(-1);
-        BG->set_texture(0, "tex", pic.tex);
-        BG->uniform2f("texSize", pic.obj->pic->get_width(), pic.obj->pic->get_height());
+        auto pic = LgrTexture.get_qframe();
+        Divider->set_texture(0, "tex", pic.tex);
+        Divider->uniform2f("texSize", pic.obj->get_width(), pic.obj->get_height());
     },
     .render = [] {
-        BG->draw_instanced(0, 6, 1);
+        Divider->draw_instanced(0, 6, 1);
     }
 };

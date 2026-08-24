@@ -52,6 +52,7 @@ extern gl_lifecycle<bool> Canvas;
 extern gl_lifecycle<const kuski*> Objects;
 extern gl_lifecycle<> Background;
 extern gl_lifecycle<GLuint, int, int, int, int> GlMinimap;
+extern gl_lifecycle<> GlDivider;
 
 
 
@@ -68,8 +69,10 @@ class lgr_texture_cache {
         cached_texture<anim>    get_anim(int anim_id);
         cached_texture<pic8>    get_grav_arrow();
         cached_texture<pic8>    get_rider_flag();
+        cached_texture<pic8>    get_qframe();
         void invalidate();
     private:
+        cached_texture<pic8>    get_misc_tex(int id, pic8* pic);
         std::map<int, cached_texture<void>> cache;
 };
 

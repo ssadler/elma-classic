@@ -38,6 +38,7 @@ static void init() {
         Kuski.init();
         Objects.init();
         GlMinimap.init();
+        GlDivider.init();
     }
 
     if (strcmp(current_lgr_name, CurrentLgrName) != 0) {
@@ -49,6 +50,7 @@ static void init() {
         Background.on_lgr();
         Kuski.on_lgr();
         Objects.on_lgr();
+        GlDivider.on_lgr();
     }
 
     if (Level->level_id != current_level_id) {
@@ -58,6 +60,7 @@ static void init() {
         Background.on_level();
         Kuski.on_level();
         Objects.on_level();
+        GlDivider.on_level();
     }
 }
 
@@ -69,23 +72,31 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
     pic_view = new pic8;
     pic_view->subview(left, bottom, right, top, pic);
 
+    auto pixels_to_meters = PixelsToMeters * GlZoom;
+    float adjusted_y = center.y;
+
 
     if (splitscreen) {
+        // Bottom view is already correct placed because scissor doesnt change aspect ratio and
+        // bottomleft_corner is actually at the bottom, but top needs to be shifted up
+        //
+        if (bottom > 0) {
+            auto height_rel = 1.0 - (top-bottom) / float(SCREEN_HEIGHT);
+            adjusted_y -= SCREEN_HEIGHT * pixels_to_meters * height_rel;
+        }
         glEnable(GL_SCISSOR_TEST);
         glScissor(left, bottom, right-left, top-bottom);
     } else {
         glDisable(GL_SCISSOR_TEST);
     }
 
-    //printf("subview %i %i %i %i\n", left, bottom, right, top);
 
-    auto pixels_to_meters = PixelsToMeters * GlZoom;
     auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
 
     Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * pixels_to_meters);
-    Globals.frustum[1] = quantize(center.y - SCREEN_HEIGHT/2.0 * pixels_to_meters);
-    Globals.frustum[2] = Globals.frustum[0] + SCREEN_WIDTH * pixels_to_meters; //quantize(center.x + SCREEN_WIDTH/2.0 * pixels_to_meters);
-    Globals.frustum[3] = Globals.frustum[1] + SCREEN_HEIGHT * pixels_to_meters; // quantize(center.y + SCREEN_HEIGHT/2.0 * pixels_to_meters);
+    Globals.frustum[1] = quantize(adjusted_y - SCREEN_HEIGHT/2.0 * pixels_to_meters);
+    Globals.frustum[2] = Globals.frustum[0] + SCREEN_WIDTH * pixels_to_meters;
+    Globals.frustum[3] = Globals.frustum[1] + SCREEN_HEIGHT * pixels_to_meters;
 
     Globals.screen_size[0] = SCREEN_WIDTH;
     Globals.screen_size[1] = SCREEN_HEIGHT;
@@ -103,8 +114,6 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
 
 void OpenGLRenderer::start_frame() {
 
-    init();
-
     /*
      * We provide the backbuffer pic for EOL overlays,
      * but unlike the regular renderer, it does not already contain
@@ -119,6 +128,14 @@ void OpenGLRenderer::start_frame() {
     pic = lock_backbuffer_pic(true);
     pic->fill_box(150);
     gl_presenter_transparency(150);
+
+
+    init();
+
+    if (splitscreen) {
+        glDisable(GL_SCISSOR_TEST);
+        GlDivider.render();
+    }
 }
 
 void OpenGLRenderer::end_frame() {
@@ -192,9 +209,7 @@ void OpenGLRenderer::prerender_timers(const char* best_time_text, double flag_ta
 void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
 
 void OpenGLRenderer::render_info_panel(const std::vector<info_panel_row>& rows) {
-        _render_info_panel(pic_view, rows);
-    //GlConsole.render(rows);
-    //GL_DEBUG
+    _render_info_panel(pic_view, rows);
 };
 
 pic8* OpenGLRenderer::get_backbuffer_pic() {

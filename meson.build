@@ -91,6 +91,7 @@ elma_sources = files(
     'src/renderer/opengl/objects.cpp',
     'src/renderer/opengl/timer.cpp',
     'src/renderer/opengl/minimap.cpp',
+    'src/renderer/opengl/divider.cpp',
     'src/renderer/opengl.cpp',
     'src/sound/engine.cpp',
     'src/sound/wav.cpp',

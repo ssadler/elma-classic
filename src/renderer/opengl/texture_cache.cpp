@@ -9,14 +9,15 @@
 #include <map>
 
 
-#define PICTURE_MASK (1<<16)
-#define GRASS_MASK (1<<17)
-#define ANIM_MASK (1<<18)
-#define MISC_MASK (1<<19)
-#define GRAVITY_ARROW MISC_MASK
-#define RIDER_FLAG (MISC_MASK + 1)
-#define DEFAULT_BACKGROUND -2
-#define DEFAULT_FOREGROUND -1
+static const int PICTURE_MASK = (1<<16);
+static const int GRASS_MASK = (1<<17);
+static const int ANIM_MASK = (1<<18);
+static const int MISC_MASK = (1<<19);
+static const int GRAVITY_ARROW = MISC_MASK;
+static const int RIDER_FLAG = (MISC_MASK + 1);
+static const int QFRAME = (MISC_MASK + 1);
+static const int DEFAULT_BACKGROUND = -2;
+static const int DEFAULT_FOREGROUND = -1;
 
 
 void lgr_texture_cache::invalidate() {
@@ -122,12 +123,10 @@ cached<anim> lgr_texture_cache::get_anim(int anim_id) {
 }
 
 
-cached<pic8> lgr_texture_cache::get_grav_arrow() {
-
-    auto r = &cache[GRAVITY_ARROW];
+cached<pic8> lgr_texture_cache::get_misc_tex(int id, pic8* pic) {
+    auto r = &cache[id];
 
     if (r->tex == 0) {
-        auto pic = get_gravity_arrow(object::Property::GravityDown);
         r->tex = upload_pic8_texture(pic);
         r->obj = (void*) pic;
     }
@@ -135,15 +134,14 @@ cached<pic8> lgr_texture_cache::get_grav_arrow() {
     return {r->tex, (pic8*)r->obj};
 }
 
+cached<pic8> lgr_texture_cache::get_grav_arrow() {
+    return get_misc_tex(GRAVITY_ARROW, get_gravity_arrow(object::Property::GravityDown));
+}
+
 cached<pic8> lgr_texture_cache::get_rider_flag() {
+    return get_misc_tex(RIDER_FLAG, Lgr->flag);
+}
 
-    auto r = &cache[RIDER_FLAG];
-
-    if (r->tex == 0) {
-        auto pic = Lgr->flag;
-        r->tex = upload_pic8_texture(pic);
-        r->obj = (void*) pic;
-    }
-
-    return {r->tex, (pic8*)r->obj};
+cached<pic8> lgr_texture_cache::get_qframe() {
+    return get_misc_tex(QFRAME, Lgr->qframe);
 }
