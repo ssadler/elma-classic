@@ -146,7 +146,7 @@ static void reload(canvas_painter* painter) {
     auto& gfx = painter->gfx;
 
     auto origin = canvas->get_origin();
-    auto pixels_to_meters = PixelsToMeters;// * GL_ZOOM;
+    auto pixels_to_meters = PixelsToMeters;// * GlZoom;
     auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
     gfx.uniform2f("origin", quantize(origin.x), quantize(origin.y));
 

@@ -8,9 +8,11 @@
 #include "pic/pic8.h"
 #include "renderer/grass.h"
 #include "renderer/render.h"
+#include <cassert>
 #include <functional>
 #include <glad/glad.h>
 #include <map>
+#include <memory>
 
 
 
@@ -49,7 +51,6 @@ extern gl_lifecycle<RenderKuski> Kuski;
 extern gl_lifecycle<bool> Canvas;
 extern gl_lifecycle<const kuski*> Objects;
 extern gl_lifecycle<> Background;
-extern gl_lifecycle<const std::vector<info_panel_row>&> GlConsole;
 extern gl_lifecycle<GLuint, int, int, int, int> GlMinimap;
 
 
@@ -95,6 +96,8 @@ void set_timer_shader_digits(shader_globals& globals, float time);
 
 
 class OpenGLRenderer : public GameRenderer {
+    pic8* pic;
+    pic8* pic_view = nullptr;
     public:
     using GameRenderer::GameRenderer;
     void start_frame() override;
@@ -112,6 +115,7 @@ class OpenGLRenderer : public GameRenderer {
     void prerender_timers(const char* best_time_text, double flag_tag_time,
                           int dest_width, int dest_height) override;
     void render_info_panel(const std::vector<info_panel_row>& rows) override;
+    pic8* get_backbuffer_pic() override;
 };
 
 
@@ -125,5 +129,9 @@ class OpenGLRenderer : public GameRenderer {
 #else
 #define GL_DEBUG {}
 #endif
+
+
+
+
 
 #endif

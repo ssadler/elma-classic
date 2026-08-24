@@ -7,9 +7,12 @@
 #include "physics/init.h"
 #include "pic/lgr.h"
 #include "pic/surface.h"
+#include "platform/implementation.h"
+#include "platform/sdl/gl_renderer.h"
 #include "renderer/render.h"
 #include "renderer/opengl.h"
 #include <cstring>
+#include <memory>
 
 
 
@@ -61,6 +64,12 @@ static void init() {
 
 void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
 
+    // For overlays
+    delete pic_view;
+    pic_view = new pic8;
+    pic_view->subview(left, bottom, right, top, pic);
+
+
     if (splitscreen) {
         glEnable(GL_SCISSOR_TEST);
         glScissor(left, bottom, right-left, top-bottom);
@@ -70,7 +79,7 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
 
     //printf("subview %i %i %i %i\n", left, bottom, right, top);
 
-    auto pixels_to_meters = PixelsToMeters * GL_ZOOM;
+    auto pixels_to_meters = PixelsToMeters * GlZoom;
     auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
 
     Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * pixels_to_meters);
@@ -93,10 +102,30 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
 
 
 void OpenGLRenderer::start_frame() {
+
     init();
+
+    /*
+     * We provide the backbuffer pic for EOL overlays,
+     * but unlike the regular renderer, it does not already contain
+     * the rendered view and will be drawn to the framebuffer
+     * as a texture.
+     *
+     * The issue with this is that we don't have a fixed transparency color
+     * available so that we can only overlay pixels that were actually drawn.
+     *
+     * Just choose a random one for now
+     */
+    pic = lock_backbuffer_pic(true);
+    pic->fill_box(150);
+    gl_presenter_transparency(150);
 }
+
 void OpenGLRenderer::end_frame() {
-    SDL_GL_SwapWindow(SDLWindow);
+    //SDL_GL_SwapWindow(SDLWindow);
+    GL_DEBUG
+    unlock_backbuffer_pic();
+    GL_DEBUG
 }
 void OpenGLRenderer::render_background() {
 }
@@ -160,7 +189,14 @@ void OpenGLRenderer::prerender_timers(const char* best_time_text, double flag_ta
     set_timer_shader_digits(Globals, time);
 }
 
+void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
+
 void OpenGLRenderer::render_info_panel(const std::vector<info_panel_row>& rows) {
-    GlConsole.render(rows);
-    GL_DEBUG
+        _render_info_panel(pic_view, rows);
+    //GlConsole.render(rows);
+    //GL_DEBUG
 };
+
+pic8* OpenGLRenderer::get_backbuffer_pic() {
+    return pic;
+}

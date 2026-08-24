@@ -24,6 +24,7 @@ void handle_events();
 void platform_init();
 void init_sound();
 
+void get_backbuffer(pic8& view, bool flipped);
 void lock_backbuffer(pic8& view, bool flipped);
 void unlock_backbuffer();
 

@@ -9,6 +9,7 @@
 #include "platform/sdl/gl_renderer.h"
 #include "platform/sdl/keyboard.h"
 #include "platform/text_input.h"
+#include "renderer/opengl.h"
 #include "sound/engine.h"
 #include <SDL.h>
 #include <algorithm>
@@ -322,9 +323,13 @@ void unlock_backbuffer() {
     SurfaceLocked = false;
 
     if (EolSettings->renderer() == RendererType::OpenGL) {
+    GL_DEBUG
         gl_upload_frame((unsigned char*)SDLSurfacePaletted->pixels, SDLSurfacePaletted->pitch);
+    GL_DEBUG
         gl_present();
+    GL_DEBUG
         SDL_GL_SwapWindow(SDLWindow);
+    GL_DEBUG
     } else {
         SDL_BlitSurface(SDLSurfacePaletted, nullptr, SDLSurfaceMain, nullptr);
         SDL_UpdateWindowSurface(SDLWindow);

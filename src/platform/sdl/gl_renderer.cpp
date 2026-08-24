@@ -1,6 +1,7 @@
 #include "platform/sdl/gl_renderer.h"
 #include "SDL_video.h"
 #include "main.h"
+#include "renderer/opengl.h"
 #include <cstring>
 #include <glad/glad.h>
 
@@ -22,10 +23,15 @@ layout(std140) uniform Palette { vec4 palette[256]; };
 in vec2 fragTexCoord;
 out vec4 FragColor;
 uniform usampler2D IndexTexture;
+uniform int transparency;
 
 void main() {
     uint index = texture(IndexTexture, fragTexCoord).r;
-    FragColor = palette[index];
+    if (transparency == int(index)) {
+        FragColor = vec4(0.0);
+    } else {
+        FragColor = palette[index];
+    }
 }
 )";
 
@@ -39,6 +45,8 @@ static GLuint IndexTexture = 0;
 static GLuint ShaderProgram = 0;
 static GLuint PBO = 0;
 static GLint IndexTexLoc = -1;
+static GLint TransparencyLoc = -1;
+static int GlPresenterTransparency = -1;
 
 static GLuint compile_shader(GLenum type, const char* source) {
     GLuint shader = glCreateShader(type);
@@ -82,8 +90,12 @@ static int init_shaders() {
     glDeleteShader(fragmentShader);
 
     glUseProgram(ShaderProgram);
+
     IndexTexLoc = glGetUniformLocation(ShaderProgram, "IndexTexture");
     glUniform1i(IndexTexLoc, 0);
+
+    TransparencyLoc = glGetUniformLocation(ShaderProgram, "transparency");
+    glUniform1i(TransparencyLoc, GlPresenterTransparency);
             
     GLuint index = glGetUniformBlockIndex(ShaderProgram, "Palette");
     glUniformBlockBinding(ShaderProgram, index, 0);
@@ -108,7 +120,11 @@ static void setup_textures(int width, int height) {
 
 static void setup_render_state() {
     glUseProgram(ShaderProgram);
+
+    glUniform1i(TransparencyLoc, GlPresenterTransparency);
+
     glBindVertexArray(VAO);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, IndexTexture);
 }
@@ -184,23 +200,33 @@ void gl_init(SDL_Window* sdl_window, int width, int height, int pitch) {
 
 void gl_upload_frame(const unsigned char* indices, int pitch) {
     const unsigned long long buffer_size = pitch * FrameHeight;
+    GL_DEBUG
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, PBO);
+    GL_DEBUG
     void* ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buffer_size,
                                  GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
     if (!ptr) {
         internal_error("Could not map PBO!");
     }
+    GL_DEBUG
 
     memcpy(ptr, indices, buffer_size);
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+    GL_DEBUG
 
     glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, IndexTexture);
+    GL_DEBUG
     glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch);
+    GL_DEBUG
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, FrameWidth, FrameHeight, GL_RED_INTEGER, GL_UNSIGNED_BYTE,
                     nullptr);
+    GL_DEBUG
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    GL_DEBUG
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    GL_DEBUG
 }
 
 void gl_update_palette(const void* palette) {
@@ -216,7 +242,20 @@ void gl_update_palette(const void* palette) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void gl_present() { setup_render_state(); glDrawArrays(GL_TRIANGLES, 0, 6); }
+void gl_present() {
+    setup_render_state();
+
+    if (GlPresenterTransparency >= 0) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDisable(GL_BLEND);
+}
+
+void gl_presenter_transparency(int transparency) {
+    GlPresenterTransparency = transparency;
+}
 
 void gl_resize(int width, int height, int pitch) {
     FrameWidth = width;

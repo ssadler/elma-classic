@@ -3,7 +3,9 @@
 
 #include "eol/eol_types.h"
 #include "pic/lgr.h"
+#include "pic/pic8.h"
 #include "vect2.h"
+#include <cassert>
 #include <string>
 class pic8;
 struct bike_metadata;
@@ -24,13 +26,14 @@ void decrease_view_size();
 enum class GameLoop { Game, Replay, Render };
 void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
 
-// TODO camel
-inline float GL_ZOOM = 1.0;
+inline float GlZoom = 1.0;
 
 struct info_panel_row {
     std::string label;
     std::string value;
 };
+
+struct pic8_dest;
 
 class GameRenderer {
     protected:
@@ -61,6 +64,7 @@ class GameRenderer {
     virtual void prerender_timers(const char* best_time_text, double flag_tag_time,
                                   int dest_width, int dest_height) {}
     virtual void render_info_panel(const std::vector<info_panel_row>& rows) = 0;
+    virtual pic8* get_backbuffer_pic() = 0;
 
 
     void render_view(bool player1, bool bottom_player, int left, int bottom, int right, int top);
@@ -76,5 +80,35 @@ class GameRenderer {
 void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
     vect2 bottomleft_corner, vect2 camera_pos);
 
+
+struct pic8_dest {
+    pic8* pic;
+    bool is_section;
+    std::vector<pic8_dest> sections;
+    int min_x = 1<<30;
+    int min_y = 1<<30;
+    int max_x = 0;
+    int max_y = 0;
+
+    pic8_dest() = default;
+    pic8_dest(pic8* pic) : pic(pic) {}
+    pic8_dest(pic8* pic, bool is_section) : pic(pic), is_section(is_section) {}
+
+    void blit(pic8* source, int x, int y) {
+#ifdef DEBUG
+        assert(is_section);
+#endif
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x+source->get_width());
+        max_y = std::max(max_y, y+source->get_height());
+
+        blit8(pic, source, x, y);
+    }
+    pic8_dest* section() {
+        sections.emplace_back(pic, true);
+        return &sections.back();
+    }
+};
 
 #endif

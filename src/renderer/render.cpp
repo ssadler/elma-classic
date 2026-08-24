@@ -46,7 +46,7 @@ void reset_game_background() { GameBackgroundRender = true; }
 
 void increase_view_size() {
     if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
-        GL_ZOOM /= 1.1;
+        GlZoom /= 1.1;
         //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
@@ -59,7 +59,7 @@ void increase_view_size() {
 
 void decrease_view_size() {
     if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
-        GL_ZOOM *= 1.1;
+        GlZoom *= 1.1;
         //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
@@ -599,7 +599,7 @@ static bool bike_in_view(const motorst* mot, vect2 center) {
 
 // Render the bottom-right info panel: rows[0] is the bottom row, each later row stacks above it
 // (the backbuffer is upside-down, so larger y is higher on screen).
-static void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
+void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
     constexpr int RIGHT_MARGIN = 10;
     constexpr int BOTTOM_MARGIN = 10;
     constexpr int LABEL_OFFSET = 180;
@@ -817,26 +817,19 @@ void GameRenderer::render() {
     // Draw 1 or 2 players
     if (splitscreen) {
         render_view(true, false, GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1);
-        //render_view(true, false, &player_view, time, driv1, driv2, current_camera, loop);
-
         render_view(false, true, GameViewLeft, GameViewBottom2, GameViewRight, GameViewTop2);
-        //render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
     } else {
         render_view(draw_player1, true, GameViewLeft, GameViewBottom1, GameViewRight, GameViewTop1);
-        //if (draw_player1) {
-        //    render_view(true, true, &player_view, time, driv1, driv2, current_camera, loop);
-        //} else {
-        //    render_view(false, true, &player_view, time, driv2, driv1, current_camera, loop);
-        //}
     }
 
     // Draw EOL overlays
-    //Console->render(*pic);
-    //StatusMessages->render(*pic, *SmallFont);
-    //EolClient->render_table(*pic, *MediumFont, *SmallFont);
-    //EolClient->render_battle_status(*pic, *SmallFont);
-    //EolClient->render_battle_leader(*pic, *SmallFont);
-    //EolClient->render_battle_countdown(*pic, *LargeFont, *SmallFont);
+    auto pic = get_backbuffer_pic();
+    Console->render(*pic);
+    StatusMessages->render(*pic, *SmallFont);
+    EolClient->render_table(*pic, *MediumFont, *SmallFont);
+    EolClient->render_battle_status(*pic, *SmallFont);
+    EolClient->render_battle_leader(*pic, *SmallFont);
+    EolClient->render_battle_countdown(*pic, *LargeFont, *SmallFont);
 
     //// Conditionally save screenshot
     //handle_screenshot(pic);
@@ -847,11 +840,14 @@ void GameRenderer::render() {
 class CPURenderer : public GameRenderer {
     pic8* pic_main;
     pic8* pic_view = nullptr;
+    pic8_dest pic_dest;
 
     public:
     using GameRenderer::GameRenderer;
+
     void start_frame() override {
         pic_main = lock_backbuffer_pic(true);
+        pic_dest.pic = pic_main;
     }
     void end_frame() override {
         unlock_backbuffer_pic();
@@ -1020,6 +1016,10 @@ class CPURenderer : public GameRenderer {
     void render_info_panel(const std::vector<info_panel_row>& rows) override {
         _render_info_panel(pic_view, rows);
     };
+
+    pic8* get_backbuffer_pic() override {
+        return pic_main;
+    }
 };
 
 
