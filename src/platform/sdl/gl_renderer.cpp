@@ -164,8 +164,6 @@ void gl_init(SDL_Window* sdl_window, int width, int height, int pitch) {
     FrameWidth = width;
     FrameHeight = height;
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     GLContext = SDL_GL_CreateContext(sdl_window);
     if (!GLContext) {
         internal_error(std::string("Failed to create OpenGL context:\n") + SDL_GetError());

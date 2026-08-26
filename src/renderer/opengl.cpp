@@ -129,6 +129,11 @@ void OpenGLRenderer::start_frame() {
 
 
     init_renderers();
+
+    if (splitscreen) {
+        glDisable(GL_SCISSOR_TEST);
+        GlDivider.render();
+    }
 }
 
 void OpenGLRenderer::end_frame() {
@@ -136,10 +141,6 @@ void OpenGLRenderer::end_frame() {
 }
 
 void OpenGLRenderer::render_background() {
-    if (splitscreen) {
-        glDisable(GL_SCISSOR_TEST);
-        GlDivider.render();
-    }
 }
 
 void OpenGLRenderer::render_objects(const kuski* spy_kuski) {
