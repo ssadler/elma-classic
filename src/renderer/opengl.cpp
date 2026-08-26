@@ -12,7 +12,6 @@
 #include "renderer/render.h"
 #include "renderer/opengl.h"
 #include <cstring>
-#include <memory>
 
 
 
@@ -29,7 +28,7 @@ static char current_lgr_name[30] = {};
 static int  current_level_id = 0;
 
 
-static void init() {
+static void init_renderers() {
     if (GlobalsVBO == 0) {
         glGenBuffers(1, &GlobalsVBO);
 
@@ -42,7 +41,6 @@ static void init() {
     }
 
     if (strcmp(current_lgr_name, CurrentLgrName) != 0) {
-        printf("gl on LGR: %s\n", CurrentLgrName);
         memcpy(current_lgr_name, CurrentLgrName, 30);
 
         LgrTexture.invalidate();
@@ -130,21 +128,18 @@ void OpenGLRenderer::start_frame() {
     gl_presenter_transparency(150);
 
 
-    init();
+    init_renderers();
+}
 
+void OpenGLRenderer::end_frame() {
+    unlock_backbuffer_pic();
+}
+
+void OpenGLRenderer::render_background() {
     if (splitscreen) {
         glDisable(GL_SCISSOR_TEST);
         GlDivider.render();
     }
-}
-
-void OpenGLRenderer::end_frame() {
-    //SDL_GL_SwapWindow(SDLWindow);
-    GL_DEBUG
-    unlock_backbuffer_pic();
-    GL_DEBUG
-}
-void OpenGLRenderer::render_background() {
 }
 
 void OpenGLRenderer::render_objects(const kuski* spy_kuski) {
