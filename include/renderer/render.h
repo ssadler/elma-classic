@@ -47,7 +47,7 @@ class GameRenderer {
     public:
     virtual void start_frame() = 0;
     virtual void end_frame() = 0;
-    virtual void render_background() = 0;
+    virtual void render_background(bool scale_changed) = 0;
     virtual void subview(int left, int bottom, int right, int top) = 0;
     virtual void render_back(bool player1) = 0;
     virtual void render_front(bool player1) = 0;
@@ -61,7 +61,6 @@ class GameRenderer {
                                int dest_width, int dest_height) {}
     virtual void prerender_timers(const char* best_time_text, double flag_tag_time,
                                   int dest_width, int dest_height) {}
-    virtual void render_info_panel(const std::vector<info_panel_row>& rows) = 0;
     virtual pic8* get_backbuffer_pic() = 0;
 
     virtual void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,

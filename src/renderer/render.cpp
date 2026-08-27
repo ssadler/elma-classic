@@ -8,7 +8,6 @@
 #include "game/fps.h"
 #include "game/game.h"
 #include "level/level.h"
-#include "level/object.h"
 #include "main.h"
 #include "physics/flagtag.h"
 #include "physics/init.h"
@@ -43,11 +42,13 @@ static double VisibleFraction = 1.0;
 constexpr double VISIBLE_FRACTION_SCALING_FACTOR = 1.1;
 
 void reset_game_background() { GameBackgroundRender = true; }
+static bool is_opengl_render() { 
+    return !std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL;
+}
 
 void increase_view_size() {
-    if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
+    if (is_opengl_render()) {
         GlZoom /= 1.1;
-        //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
     VisibleFraction *= VISIBLE_FRACTION_SCALING_FACTOR;
@@ -58,9 +59,8 @@ void increase_view_size() {
 }
 
 void decrease_view_size() {
-    if (!std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL) {
+    if (is_opengl_render()) {
         GlZoom *= 1.1;
-        //printf("GL_ZOOM: %lf\n", GL_ZOOM);
         return;
     }
     VisibleFraction /= VISIBLE_FRACTION_SCALING_FACTOR;
@@ -92,10 +92,10 @@ double AffinePicScreenBottom;
 double AffinePicScreenTop;
 
 // In pixels from the bottom-left corner of screen
-static int MinimapWidth;
-static int MinimapHeight;
-static int MinimapX;
-static int MinimapDx;
+int MinimapWidth;
+int MinimapHeight;
+int MinimapX;
+int MinimapDx;
 
 pic8* shirt = nullptr;
 
@@ -163,143 +163,6 @@ static void calculate_viewpoints(bool splitscreen) {
     MinimapDx = GameViewWidth - 2 * MinimapX - MinimapWidth;
 }
 
-// Render a 3x3 square onto the minimap
-static void render_minimap_icon(pic8* pic, int x, int y, unsigned char palette_id) {
-    if (x < -1 || x > pic->get_width() || y < -1 || y > pic->get_height()) {
-        // Skip drawing icons that are completely out of bounds
-        return;
-    }
-    pic->ppixel(x - 1, y - 1, palette_id);
-    pic->ppixel(x, y - 1, palette_id);
-    pic->ppixel(x + 1, y - 1, palette_id);
-    pic->ppixel(x - 1, y, palette_id);
-    pic->ppixel(x + 1, y, palette_id);
-    pic->ppixel(x - 1, y + 1, palette_id);
-    pic->ppixel(x, y + 1, palette_id);
-    pic->ppixel(x + 1, y + 1, palette_id);
-}
-
-
-void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
-    vect2 bottomleft_corner, vect2 camera_pos) {
-    // Draw the background (polygons)
-    CanvasMinimap->render_minimap(player1, minimap_view, bottomleft_corner, 0, 0, MinimapWidth - 1,
-                                  MinimapHeight - 1);
-
-
-    // Draw the objects
-    int corner_x;
-    int corner_y;
-    CanvasMinimap->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
-    const kuski* spy_kuski = EolClient->spy_kuski();
-    for (int i = 0; i < MAX_OBJECTS; i++) {
-        object* obj = Level->objects[i];
-        if (!obj) {
-            break;
-        }
-
-        unsigned char palette_id;
-        switch (obj->type) {
-        case object::Type::Food:
-            if (!obj->active || (spy_kuski && spy_kuski->apples_taken[i])) {
-                continue;
-            }
-            palette_id = Lgr->minimap_food_palette_id;
-            break;
-        case object::Type::Exit:
-            if ((!Single && FlagTag) || EolClient->battle_hides_exit()) {
-                continue;
-            }
-            palette_id = Lgr->minimap_exit_palette_id;
-            break;
-        default:
-            continue;
-        }
-
-        render_minimap_icon(minimap_view, obj->minimap_canvas_x - corner_x,
-                            obj->minimap_canvas_y - corner_y, palette_id);
-    }
-
-    // Select the correct color for each bike
-    unsigned char bike1_id = Lgr->minimap_bike1_palette_id;
-    unsigned char bike2_id = Lgr->minimap_bike2_palette_id;
-    if ((State->player1_bike1 && !player1) || (!State->player1_bike1 && player1)) {
-        bike1_id = Lgr->minimap_bike2_palette_id;
-        bike2_id = Lgr->minimap_bike1_palette_id;
-    }
-
-    if (EolSettings->show_others()) {
-        for (const kuski& ku : EolClient->kuskis()) {
-            const spy_data* k = ku.spy_data();
-            if (!k) {
-                continue;
-            }
-
-            vect2 k_pos = k->mot.bike.r - bottomleft_corner;
-            int k_x = (int)(k_pos.x * MetersToMinimapPixels);
-            int k_y = (int)(k_pos.y * MetersToMinimapPixels);
-            render_minimap_icon(minimap_view, k_x, k_y, bike2_id);
-        }
-    }
-
-    // Draw the other bike
-    if (other_motor) {
-        vect2 other_pos = other_motor->bike.r - bottomleft_corner;
-        int other_x = (int)(other_pos.x * MetersToMinimapPixels);
-        int other_y = (int)(other_pos.y * MetersToMinimapPixels);
-        render_minimap_icon(minimap_view, other_x, other_y, bike2_id);
-    }
-
-    // Draw the current player's bike
-    int bike_x = (int)(camera_pos.x * MetersToMinimapPixels);
-    int bike_y = (int)(camera_pos.y * MetersToMinimapPixels);
-    render_minimap_icon(minimap_view, bike_x, bike_y, bike1_id);
-}
-
-
-
-
-
-
-// Render the entire minimap
-void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
-                           motorst* other_motor) {
-    // Calculate minimap size and minimap frame of reference
-    double minimap_width = MinimapWidth * MinimapScaleFactor * PixelsToMeters;
-    double minimap_height = MinimapHeight * MinimapScaleFactor * PixelsToMeters;
-
-    double camera_x = EolSettings->center_map() ? 0.5 : 0.2;
-    double camera_dx = 1.0 - 2.0 * camera_x;
-    vect2 camera_pos(minimap_width * (camera_x + camera_turn_phase * camera_dx),
-                     minimap_height / 2);
-    vect2 bottomleft_corner = bike_center - camera_pos;
-
-    double align;
-    switch (EolSettings->map_alignment()) {
-    case MapAlignment::None:
-        align = camera_turn_phase;
-        break;
-    case MapAlignment::Left:
-        align = 0.0;
-        break;
-    case MapAlignment::Middle:
-        align = 0.5;
-        break;
-    case MapAlignment::Right:
-        align = 1.0;
-        break;
-    }
-
-    const int minimap_x1 = std::max(1, (int)(MinimapX + align * MinimapDx));
-    const int minimap_x2 = minimap_x1 + MinimapWidth - 1;
-    const int minimap_y1 = 1;
-    const int minimap_y2 = minimap_y1 + MinimapHeight - 1;
-
-    render_minimap(player1, other_motor,
-                   minimap_x1, minimap_y1, minimap_x2, minimap_y2,
-                   bottomleft_corner, camera_pos);
-}
-
 
 static void handle_screenshot(pic8* pic) {
     if (VideoRecordingMode) {
@@ -338,7 +201,7 @@ static bool bike_in_view(const motorst* mot, vect2 center) {
 
 // Render the bottom-right info panel: rows[0] is the bottom row, each later row stacks above it
 // (the backbuffer is upside-down, so larger y is higher on screen).
-void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
+void render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
     constexpr int RIGHT_MARGIN = 10;
     constexpr int BOTTOM_MARGIN = 10;
     constexpr int LABEL_OFFSET = 180;
@@ -400,13 +263,6 @@ static std::vector<info_panel_row> get_info_rows(
             {std::format("last apple ({})", driv.mot->apple_count - driv.mot->apple_bug_count),
              apple_time});
     }
-
-    //if (!EolClient->play_offline() && !EolClient->connected()) {
-    //    MediumFont->write_right_align(
-    //        pic, GameViewWidth - 10, GameViewHeight - MediumFont->line_height() * 2,
-    //        std::format("Lost connection ({} to reconnect)", dik_to_string(State->key_reconnect))
-    //            .c_str(Tahoma));
-    //}
 
     return info_rows;
 }
@@ -520,9 +376,21 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
         render_timers(BestTime, flagtag_time, GameViewWidth, GameViewHeight);
     }
 
+    /*
+     * Pic rendering stuff
+     */
+
     auto info_rows = get_info_rows(bottom_player, loop, current_camera, driv);
 
-    render_info_panel(info_rows);
+    auto pic = get_backbuffer_pic();
+    render_info_panel(pic, info_rows);
+
+    if (!EolClient->play_offline() && !EolClient->connected()) {
+        MediumFont->write_right_align(
+            pic, GameViewWidth - 10, GameViewHeight - MediumFont->line_height() * 2,
+            std::format("Lost connection ({} to reconnect)", dik_to_string(State->key_reconnect))
+                .c_str());
+    }
 }
 
 
@@ -550,8 +418,9 @@ void GameRenderer::render() {
     if (GameBackgroundRender) {
         GameBackgroundRender = false;
         calculate_viewpoints(splitscreen);
-        render_background();
     }
+
+    render_background(GameBackgroundRender);
 
     // Draw 1 or 2 players
     if (splitscreen) {
@@ -570,27 +439,64 @@ void GameRenderer::render() {
     EolClient->render_battle_leader(*pic, *SmallFont);
     EolClient->render_battle_countdown(*pic, *LargeFont, *SmallFont);
 
-    //// Conditionally save screenshot
-    //handle_screenshot(pic);
-
     end_frame();
+
+    //// Conditionally save screenshot
+    handle_screenshot(pic);
 }
 
 
 
-void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
-    fps::count_fps();
+// Render the entire minimap
+void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
+                           motorst* other_motor) {
+    // Calculate minimap size and minimap frame of reference
+    double minimap_width = MinimapWidth * MinimapScaleFactor * PixelsToMeters;
+    double minimap_height = MinimapHeight * MinimapScaleFactor * PixelsToMeters;
 
-    auto cpu_render = std::getenv("CPURENDER");
-    GameRenderer* renderer = nullptr;
+    double camera_x = EolSettings->center_map() ? 0.5 : 0.2;
+    double camera_dx = 1.0 - 2.0 * camera_x;
+    vect2 camera_pos(minimap_width * (camera_x + camera_turn_phase * camera_dx),
+                     minimap_height / 2);
+    vect2 bottomleft_corner = bike_center - camera_pos;
 
-    if (!cpu_render && EolSettings->renderer() == RendererType::OpenGL) {
-        renderer = createOpenGLRenderer(time, driv1, driv2, current_camera, loop);
-    } else {
-        renderer = createPicRenderer(time, driv1, driv2, current_camera, loop);
+    double align;
+    switch (EolSettings->map_alignment()) {
+    case MapAlignment::None:
+        align = camera_turn_phase;
+        break;
+    case MapAlignment::Left:
+        align = 0.0;
+        break;
+    case MapAlignment::Middle:
+        align = 0.5;
+        break;
+    case MapAlignment::Right:
+        align = 1.0;
+        break;
     }
 
-    renderer->render();
+    const int minimap_x1 = std::max(1, (int)(MinimapX + align * MinimapDx));
+    const int minimap_x2 = minimap_x1 + MinimapWidth - 1;
+    const int minimap_y1 = 1;
+    const int minimap_y2 = minimap_y1 + MinimapHeight - 1;
 
+    render_minimap(player1, other_motor,
+                   minimap_x1, minimap_y1, minimap_x2, minimap_y2,
+                   bottomleft_corner, camera_pos);
+}
+
+
+
+
+void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
+
+    fps::count_fps();
+
+    GameRenderer* renderer = is_opengl_render() ?
+        createOpenGLRenderer(time, driv1, driv2, current_camera, loop) :
+        createPicRenderer(time, driv1, driv2, current_camera, loop);
+
+    renderer->render();
     delete renderer;
 }

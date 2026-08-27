@@ -80,6 +80,7 @@ elma_sources = files(
     'src/renderer/canvas.cpp',
     'src/renderer/grass.cpp',
     'src/renderer/bike.cpp',
+    'src/renderer/minimap.cpp',
     'src/renderer/object_overlay.cpp',
     'src/renderer/render.cpp',
     'src/renderer/render_opengl.cpp',
@@ -99,6 +100,7 @@ elma_sources = files(
     'src/sound/wav.cpp',
     'src/util/file_iter.cpp',
     'src/util/util.cpp',
+    'src/util/stb_image.cpp',
     'src/vect2.cpp',
 )
 

@@ -11,13 +11,16 @@
 #include "platform/text_input.h"
 #include "renderer/opengl.h"
 #include "sound/engine.h"
+#include "stb_image_write.h"
 #include <SDL.h>
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <format>
+#include <memory>
+#include <thread>
 
-SDL_Window* SDLWindow = nullptr;
+static SDL_Window* SDLWindow = nullptr;
 static SDL_Surface* SDLSurfaceMain = nullptr;
 static SDL_Surface* SDLSurfacePaletted = nullptr;
 static palette* CurrentPalette = nullptr;
@@ -323,13 +326,9 @@ void unlock_backbuffer() {
     SurfaceLocked = false;
 
     if (EolSettings->renderer() == RendererType::OpenGL) {
-    GL_DEBUG
         gl_upload_frame((unsigned char*)SDLSurfacePaletted->pixels, SDLSurfacePaletted->pitch);
-    GL_DEBUG
         gl_present();
-    GL_DEBUG
         SDL_GL_SwapWindow(SDLWindow);
-    GL_DEBUG
     } else {
         SDL_BlitSurface(SDLSurfacePaletted, nullptr, SDLSurfaceMain, nullptr);
         SDL_UpdateWindowSurface(SDLWindow);
@@ -537,7 +536,27 @@ bool platform_save_screenshot() {
 
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::floor<std::chrono::seconds>(now);
-    std::string filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}.bmp", time);
 
+
+    if (EolSettings->renderer() == RendererType::OpenGL) {
+
+        auto width = SCREEN_WIDTH;
+        auto height = SCREEN_HEIGHT;
+        std::string filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}.png", time);
+
+        // Read RGB pixels (3 channels)
+        auto pixels = std::make_unique<unsigned char[]>(3 * width * height);
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.get());
+
+        // fire and forget
+        std::thread([=](std::unique_ptr<unsigned char[]> pixels){
+            // returns 0 on failure and non-0 on success
+            stbi_write_png(filename.c_str(), width, height, 3, pixels.get(), width * 3);
+        }, std::move(pixels)).detach();
+
+        return 0;
+    }
+
+    std::string filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}.bmp", time);
     return SDL_SaveBMP(SDLSurfacePaletted, filename.c_str()) == 0;
 }

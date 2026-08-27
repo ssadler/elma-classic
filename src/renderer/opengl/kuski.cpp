@@ -1,6 +1,7 @@
 
 #include "include/pic/lgr.h"
 #include "include/pic/pic8.h"
+#include "renderer/affine.h"
 #include "renderer/opengl.h"
 #include "renderer/opengl_gfx.h"
 #include <cstring>
@@ -10,21 +11,8 @@
 
 
 
-#define PI 3.1415926535897932
-
 static Graphics* Painter = nullptr;
-
-//static double BikeFrameX;
-//static double BikeFrameY;
-//static vect2 BikeFrameI;
-//static vect2 BikeFrameJ;
-//static vect2 BikeFrameR;
-
-static bool StretchEnabled = false;
-static double StretchFactor = 1.0;
-static vect2 StretchCenter = Vect2i;
-static vect2 StretchAxis = Vect2i;
-
+static std::unordered_map<const pic8*, GLuint> BikeTextures;
 
 
 
@@ -46,7 +34,6 @@ void main() {
 
   gl_Position = vec4(-1.0 + x * 2.0, -1.0 + y * 2.0, 0.0, 1.0);
 
-
   fragTexCoord = pos;
 }
 )";
@@ -66,8 +53,6 @@ void main() {
 }
 )";
 
-
-static std::unordered_map<const pic8*, GLuint> BikeTextures;
 
 
 
@@ -96,45 +81,25 @@ static void init() {
 }
 
 
-void opengl_bike_draw_affine_pic(
-    const pic8* affine, unsigned char transparency, vect2 u, vect2 v, vect2 r) {
+void opengl_bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
+        vect2 u, vect2 v, vect2 r) {
 
-    auto& tex = BikeTextures[affine];
-
-    if (!tex) {
-        tex = upload_pic8_texture(affine);
-    }
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-
-    if (StretchEnabled) {
-        // Stretch coordinate r
-        double distance = (r - StretchCenter) * StretchAxis;
-        vect2 delta = (distance * (1.0 - StretchFactor)) * StretchAxis;
-        r = r - delta;
-
-        // Stretch coordinate u
-        distance = u * StretchAxis;
-        delta = (distance * (1.0 - StretchFactor)) * StretchAxis;
-        u = u - delta;
-
-        // Stretch coordinate v
-        distance = v * StretchAxis;
-        delta = (distance * (1.0 - StretchFactor)) * StretchAxis;
-        v = v - delta;
-    }
-
+    apply_stretch_parameters(u, v, r);
 
     float mat3[9] = {
         float(u.x), float(u.y), 0.0f,
         float(v.x), float(v.y), 0.0f,
         float(r.x), float(r.y), 1.0f
     };
-
-
     Painter->uniform_matrix_3fv("uTransform", 1, false, mat3);
+
+
+    auto& tex = BikeTextures[affine];
+    if (!tex) {
+        tex = upload_pic8_texture(affine);
+    }
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
     Painter->uniform1ui("tColor", transparency);
     Painter->draw();
     GL_DEBUG

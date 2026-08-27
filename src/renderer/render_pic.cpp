@@ -1,3 +1,6 @@
+// #ifndef RENDER_CPP
+// #define RENDER_CPP
+
 
 #include "renderer/render.h"
 #include "editor/editor.h"
@@ -24,17 +27,17 @@
 #include <cmath>
 #include <cstring>
 #include <string>
-#include <vector>
 
 
-void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
 
 
 class PicRenderer : public GameRenderer {
+
+    public:
+
     pic8* pic_main;
     pic8* pic_view = nullptr;
 
-    public:
     using GameRenderer::GameRenderer;
 
     void start_frame() override {
@@ -50,16 +53,18 @@ class PicRenderer : public GameRenderer {
     }
 
     // Cover the screen with qframe
-    void render_background() override {
-        for (int i = 0; i < pic_main->get_height(); i += Lgr->qframe->get_height()) {
-            for (int j = 0; j < pic_main->get_width(); j += Lgr->qframe->get_width()) {
-                blit8(pic_main, Lgr->qframe, j, i);
+    void render_background(bool scale_changed) override {
+        if (scale_changed) {
+            for (int i = 0; i < pic_main->get_height(); i += Lgr->qframe->get_height()) {
+                for (int j = 0; j < pic_main->get_width(); j += Lgr->qframe->get_width()) {
+                    blit8(pic_main, Lgr->qframe, j, i);
+                }
             }
         }
     }
 
+    // Draw the objects
     void render_objects(const kuski* spy_kuski) override {
-        // Draw the objects
         int corner_x;
         int corner_y;
         CanvasBack->meters_to_pixels(bottomleft_corner, &corner_x, &corner_y);
@@ -199,10 +204,6 @@ class PicRenderer : public GameRenderer {
         draw_timers(best_time_text, flag_tag_time, time, pic_view, dest_width, dest_height);
     };
 
-    void render_info_panel(const std::vector<info_panel_row>& rows) override {
-        _render_info_panel(pic_view, rows);
-    };
-
     pic8* get_backbuffer_pic() override {
         return pic_main;
     }
@@ -210,6 +211,8 @@ class PicRenderer : public GameRenderer {
 
     void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
             vect2 u, vect2 v, vect2 r) override {
+
+        apply_stretch_parameters(u, v, r);
 
         r = r - bottomleft_corner;
 
@@ -227,8 +230,12 @@ class PicRenderer : public GameRenderer {
 
 
 
-
+#ifndef RENDER_PIC_IS_INCLUDE
 GameRenderer* createPicRenderer(
         double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
     return new PicRenderer(time, driv1, driv2, current_camera, loop);
 }
+#endif
+
+
+//#endif

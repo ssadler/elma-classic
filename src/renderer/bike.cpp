@@ -41,6 +41,11 @@ void GameRenderer::render_bike(
     vect2 BikeFrameR;
 
 
+    ////////////////////////////////////////////////////////////////////////////////
+    // LAMBDAS        (it's nice to have visual hints in large functions)
+    ////////////////////////////////////////////////////////////////////////////////
+
+
     // Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
     // All units are in meters
     // a = coordinate of middle left of affine_pic position (distal end of the limb)
@@ -58,6 +63,7 @@ void GameRenderer::render_bike(
         v = v * height;
         a = a - v;
 
+        // This is a method call, hense the lambdas
         bike_draw_affine_pic(affine, affine->gpixel(0, 0), u, v * 2.0, a);
     };
 
@@ -81,6 +87,11 @@ void GameRenderer::render_bike(
         }
         render_affine_pic(affine, r + direction, r - direction, radius, 0.0, 0.0, flip);
     };
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // OK ENOUGH LAMBDAS
+    ////////////////////////////////////////////////////////////////////////////////
 
 
 
