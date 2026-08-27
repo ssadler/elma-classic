@@ -12,7 +12,6 @@
 #include <functional>
 #include <glad/glad.h>
 #include <map>
-#include <memory>
 
 
 
@@ -47,7 +46,7 @@ struct gl_lifecycle {
   std::function<void(Args...)> render = []{};
 };
 
-extern gl_lifecycle<RenderKuski> Kuski;
+extern gl_lifecycle<> Kuski;
 extern gl_lifecycle<bool> Canvas;
 extern gl_lifecycle<const kuski*> Objects;
 extern gl_lifecycle<> Background;
@@ -98,29 +97,12 @@ void set_timer_shader_digits(shader_globals& globals, float time);
 
 
 
-class OpenGLRenderer : public GameRenderer {
-    pic8* pic;
-    pic8* pic_view = nullptr;
-    public:
-    using GameRenderer::GameRenderer;
-    void start_frame() override;
-    void end_frame() override;
-    void render_background() override;
-    void subview(int left, int bottom, int right, int top) override;
-    void render_back(bool player1) override;
-    void render_front(bool player1) override;
-    void render_objects(const kuski* spy_kuski) override;
-    void render_bike(bool has_flag, const motorst* mot,
-                     const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt) override;
-    void render_minimap(bool player1, motorst* other_motor,
-                        int x1, int y1, int x2, int y2,        
-                        vect2 bottomleft_corner, vect2 camera_pos) override;
-    void prerender_timers(const char* best_time_text, double flag_tag_time,
-                          int dest_width, int dest_height) override;
-    void render_info_panel(const std::vector<info_panel_row>& rows) override;
-    pic8* get_backbuffer_pic() override;
-};
 
+void opengl_bike_draw_affine_pic(
+    const pic8* affine, unsigned char transparency, vect2 u, vect2 v, vect2 r);
+
+GameRenderer* createOpenGLRenderer(
+        double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
 
 
 #ifdef DEBUG

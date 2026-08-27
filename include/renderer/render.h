@@ -52,8 +52,6 @@ class GameRenderer {
     virtual void render_back(bool player1) = 0;
     virtual void render_front(bool player1) = 0;
     virtual void render_objects(const kuski* spy_kuski) = 0;
-    virtual void render_bike(bool has_flag, const motorst* mot,
-                             const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt) = 0;
     virtual void render_minimap(
             bool player1, motorst* other_motor,
             int x1, int y1, int x2, int y2,
@@ -66,10 +64,27 @@ class GameRenderer {
     virtual void render_info_panel(const std::vector<info_panel_row>& rows) = 0;
     virtual pic8* get_backbuffer_pic() = 0;
 
+    // Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
+    // All units are in meters
+    // a = coordinate of middle left of affine_pic position (distal end of the limb)
+    // b = coordinate of middle right of affine_pic position (proximal end of the limb)
+    // Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
+    // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
+    // height represents the vertical length of the affine_pic (thickness of the limb)
+    void bike_render_affine_pic(const pic8* affine, vect2 a, vect2 b,
+            double height, double a_stretch, double b_stretch, bool flip);
+
+    // Render a wheel or head affine_pic
+    void bike_render_rigidbody(const pic8* affine, vect2 r, double radius, double rotation,
+                                       bool flip);
+    virtual void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
+            vect2 u, vect2 v, vect2 r) = 0;
 
     void render_view(bool player1, bool bottom_player, int left, int bottom, int right, int top);
+    void render_bike(bool has_flag, const motorst* mot, const bike_metadata* metadata,
+            const bike_pics* bike, const pic8* shirt);
     void dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
-                           motorst* other_motor);
+                          motorst* other_motor);
 
     GameRenderer(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
     virtual ~GameRenderer() = default;
@@ -77,38 +92,14 @@ class GameRenderer {
     void render();
 };
 
+
+
+GameRenderer* createPicRenderer(
+        double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
+
+
 void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
     vect2 bottomleft_corner, vect2 camera_pos);
 
-
-struct pic8_dest {
-    pic8* pic;
-    bool is_section;
-    std::vector<pic8_dest> sections;
-    int min_x = 1<<30;
-    int min_y = 1<<30;
-    int max_x = 0;
-    int max_y = 0;
-
-    pic8_dest() = default;
-    pic8_dest(pic8* pic) : pic(pic) {}
-    pic8_dest(pic8* pic, bool is_section) : pic(pic), is_section(is_section) {}
-
-    void blit(pic8* source, int x, int y) {
-#ifdef DEBUG
-        assert(is_section);
-#endif
-        min_x = std::min(min_x, x);
-        min_y = std::min(min_y, y);
-        max_x = std::max(max_x, x+source->get_width());
-        max_y = std::max(max_y, y+source->get_height());
-
-        blit8(pic, source, x, y);
-    }
-    pic8_dest* section() {
-        sections.emplace_back(pic, true);
-        return &sections.back();
-    }
-};
 
 #endif

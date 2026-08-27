@@ -21,6 +21,7 @@ shader_globals Globals;
 extern SDL_Window* SDLWindow;
 
 
+static GLuint minimap_tex = 0;
 
 
 
@@ -63,7 +64,27 @@ static void init_renderers() {
 }
 
 
-void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
+
+
+void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
+
+
+
+
+class OpenGLRenderer : public GameRenderer {
+    pic8* pic;
+    pic8* pic_view = nullptr;
+    public:
+    using GameRenderer::GameRenderer;
+
+
+
+
+
+
+
+
+void subview(int left, int bottom, int right, int top) override {
 
     // For overlays
     delete pic_view;
@@ -109,8 +130,7 @@ void OpenGLRenderer::subview(int left, int bottom, int right, int top) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-
-void OpenGLRenderer::start_frame() {
+void start_frame() override {
 
     /*
      * We provide the backbuffer pic for EOL overlays,
@@ -136,27 +156,22 @@ void OpenGLRenderer::start_frame() {
     }
 }
 
-void OpenGLRenderer::end_frame() {
+
+
+void end_frame() override {
     unlock_backbuffer_pic();
 }
 
-void OpenGLRenderer::render_background() {
+void render_background() override {
 }
 
-void OpenGLRenderer::render_objects(const kuski* spy_kuski) {
+void render_objects(const kuski* spy_kuski) override {
     Objects.render(spy_kuski);
     GL_DEBUG
 }
 
 
-void OpenGLRenderer::render_bike(bool has_flag, const motorst* mot,
-                 const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt) {
-    Kuski.render({mot, metadata, has_flag, bike, shirt});
-    GL_DEBUG
-}
-
-
-void OpenGLRenderer::render_back(bool) {
+void render_back(bool) override {
     GL_DEBUG
     Background.render();
     GL_DEBUG
@@ -164,18 +179,17 @@ void OpenGLRenderer::render_back(bool) {
     GL_DEBUG
 }
 
-void OpenGLRenderer::render_front(bool) {
+void render_front(bool) override {
     Canvas.render(false);
     GL_DEBUG
 }
 
-static GLuint minimap_tex = 0;
 
-void OpenGLRenderer::render_minimap(
+void render_minimap(
     bool player1, motorst* other_motor,
     int x1, int y1, int x2, int y2,        
     vect2 bottomleft_corner, vect2 camera_pos
-) {
+) override {
     if (minimap_tex) {
         glDeleteTextures(1, &minimap_tex);
     }
@@ -197,17 +211,36 @@ void OpenGLRenderer::render_minimap(
     GlMinimap.render(minimap_tex, x1, y1, x2, y2);
 };
 
-void OpenGLRenderer::prerender_timers(const char* best_time_text, double flag_tag_time,
-                   int dest_width, int dest_height) {
+void prerender_timers(const char* best_time_text, double flag_tag_time,
+                   int dest_width, int dest_height) override {
     set_timer_shader_digits(Globals, time);
 }
 
-void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
-
-void OpenGLRenderer::render_info_panel(const std::vector<info_panel_row>& rows) {
+void render_info_panel(const std::vector<info_panel_row>& rows) override {
     _render_info_panel(pic_view, rows);
 };
 
-pic8* OpenGLRenderer::get_backbuffer_pic() {
+pic8* get_backbuffer_pic() override {
     return pic;
 }
+
+
+    void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
+            vect2 u, vect2 v, vect2 r) override {
+        opengl_bike_draw_affine_pic(affine, transparency, u, v, r);
+    }
+
+
+
+
+};
+
+
+
+
+
+GameRenderer* createOpenGLRenderer(
+        double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
+    return new OpenGLRenderer(time, driv1, driv2, current_camera, loop);
+}
+
