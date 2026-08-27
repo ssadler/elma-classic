@@ -33,8 +33,10 @@ struct info_panel_row {
     std::string value;
 };
 
-struct pic8_dest;
 
+/*
+ * GameRenderer abstract superclass
+ */
 class GameRenderer {
     protected:
     bool draw_player1;
@@ -77,7 +79,6 @@ class GameRenderer {
 
     void render();
 };
-
 
 
 GameRenderer* createPicRenderer(
