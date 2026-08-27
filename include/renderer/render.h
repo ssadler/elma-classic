@@ -64,19 +64,6 @@ class GameRenderer {
     virtual void render_info_panel(const std::vector<info_panel_row>& rows) = 0;
     virtual pic8* get_backbuffer_pic() = 0;
 
-    // Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
-    // All units are in meters
-    // a = coordinate of middle left of affine_pic position (distal end of the limb)
-    // b = coordinate of middle right of affine_pic position (proximal end of the limb)
-    // Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
-    // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
-    // height represents the vertical length of the affine_pic (thickness of the limb)
-    void bike_render_affine_pic(const pic8* affine, vect2 a, vect2 b,
-            double height, double a_stretch, double b_stretch, bool flip);
-
-    // Render a wheel or head affine_pic
-    void bike_render_rigidbody(const pic8* affine, vect2 r, double radius, double rotation,
-                                       bool flip);
     virtual void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
             vect2 u, vect2 v, vect2 r) = 0;
 

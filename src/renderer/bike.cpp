@@ -17,75 +17,73 @@
 #include "renderer/object_overlay.h"
 #include "renderer/timer.h"
 #include "util/util.h"
+#include "vect2.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
 
 
-
-
-static double BikeFrameX;
-static double BikeFrameY;
-static vect2 BikeFrameI;
-static vect2 BikeFrameJ;
-static vect2 BikeFrameR;
-static vect2 BikeFrameIPixels;
-static vect2 BikeFrameJPixels;
-static vect2 BikeFrameRPixels;
-
-
-
-
-
-// Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
-// All units are in meters
-// a = coordinate of middle left of affine_pic position (distal end of the limb)
-// b = coordinate of middle right of affine_pic position (proximal end of the limb)
-// Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
-// Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
-// height represents the vertical length of the affine_pic (thickness of the limb)
-void GameRenderer::bike_render_affine_pic(const pic8* affine, vect2 a, vect2 b, double height, 
-                            double a_stretch, double b_stretch, bool flip) {
-    vect2 i = unit_vector(b - a);
-    b = b + i * b_stretch;
-    a = a - i * a_stretch;
-    vect2 u = b - a;
-    vect2 v;
-    if (flip) {
-        v = rotate_90deg(i) * height;
-    } else {
-        v = rotate_minus90deg(i) * height;
-    }
-    a = a - v;
-
-    //a.x *= MetersToPixels;
-    //a.y *= MetersToPixels;
-    //u.x *= MetersToPixels;
-    //u.y *= MetersToPixels;
-    //v.x *= MetersToPixels;
-    //v.y *= MetersToPixels;
-    bike_draw_affine_pic(affine, affine->gpixel(0, 0), u, v * 2.0, a);
-}
-
-
-// Render a wheel or head affine_pic
-void GameRenderer::bike_render_rigidbody(const pic8* affine, vect2 r, double radius, double rotation,
-                           bool flip) {
-    vect2 direction(cos(rotation) * radius, sin(rotation) * radius);
-    if (!flip) {
-        direction = vect2() - direction;
-    }
-    bike_render_affine_pic(affine, r + direction, r - direction, radius, 0.0, 0.0, flip);
-}
-
-
-
-
-
 // Render an entire bike + kuski
-void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_metadata* metadata,
-            const bike_pics* bike, const pic8* shirt) {
+void GameRenderer::render_bike(
+    bool has_flag,
+    const motorst* mot,
+    const bike_metadata* metadata,
+    const bike_pics* bike,
+    const pic8* shirt
+) {
+
+    // Bike positionals
+    double BikeFrameX;
+    double BikeFrameY;
+    vect2 BikeFrameI;
+    vect2 BikeFrameJ;
+    vect2 BikeFrameR;
+
+
+    // Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
+    // All units are in meters
+    // a = coordinate of middle left of affine_pic position (distal end of the limb)
+    // b = coordinate of middle right of affine_pic position (proximal end of the limb)
+    // Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
+    // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
+    // height represents the vertical length of the affine_pic (thickness of the limb)
+    auto render_affine_pic = [&](const pic8* affine, vect2 a, vect2 b, double height, 
+                                      double a_stretch, double b_stretch, bool flip) {
+        vect2 i = unit_vector(b - a);
+        b = b + i * b_stretch;
+        a = a - i * a_stretch;
+        vect2 u = b - a;
+        vect2 v = flip ? rotate_90deg(i) : rotate_minus90deg(i);
+        v = v * height;
+        a = a - v;
+
+        bike_draw_affine_pic(affine, affine->gpixel(0, 0), u, v * 2.0, a);
+    };
+
+
+    // Render a bike frame fragment
+    auto render_bike_part = [&](pic8* part, unsigned char transparency, bike_box* box) {
+        vect2 r = BikeFrameI * (box->x1 + 260 - BikeFrameX) +
+                  BikeFrameJ * (BikeFrameY - (box->y1 + 260)) + BikeFrameR;
+        vect2 u = BikeFrameI * (box->x2 - box->x1);
+        vect2 v = BikeFrameJ * (box->y1 - box->y2);
+        bike_draw_affine_pic(part, transparency, u, v, r);
+    };
+
+
+    // Render a wheel or head affine_pic
+    auto render_rigidbody = [&](const pic8* affine, vect2 r, double radius, double rotation,
+                                bool flip) {
+        vect2 direction(cos(rotation) * radius, sin(rotation) * radius);
+        if (!flip) {
+            direction = vect2() - direction;
+        }
+        render_affine_pic(affine, r + direction, r - direction, radius, 0.0, 0.0, flip);
+    };
+
+
+
     double arm_position = metadata->arm_position;
     double turn_phase = metadata->bike_turning.turn_phase;
 
@@ -98,8 +96,8 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     }
 
     // Calculate wheel position relative to screen
-    vect2 left_wheel_r = (mot->left_wheel.r - bottomleft_corner);
-    vect2 right_wheel_r = (mot->right_wheel.r - bottomleft_corner);
+    vect2 left_wheel_r = mot->left_wheel.r;
+    vect2 right_wheel_r = mot->right_wheel.r;
 
     // If turning, we will be rendering one wheel in the foreground (usually they are rendered in
     // background)
@@ -116,16 +114,16 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     // Render background wheels
     constexpr double WHEEL_RENDER_RADIUS = 0.395;
     if (left_wheel_in_back) {
-        bike_render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
+        render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
                 mot->left_wheel.rotation, false);
     }
     if (right_wheel_in_back) {
-        bike_render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
+        render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
                 mot->right_wheel.rotation, false);
     }
 
     // Get the bike position and angle
-    vect2 bike_r = mot->bike.r - bottomleft_corner;
+    vect2 bike_r = mot->bike.r;
     vect2 bike_i = vect2(cos(mot->bike.rotation), sin(mot->bike.rotation));
     vect2 bike_j = rotate_90deg(bike_i);
 
@@ -155,48 +153,24 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     }
     BikeFrameR = bike_r;
 
-    // Convert bike position from meters to pixels
-    BikeFrameIPixels = BikeFrameI * MetersToPixels;
-    BikeFrameJPixels = BikeFrameJ * MetersToPixels;
-    BikeFrameRPixels = BikeFrameR * MetersToPixels;
-
     // Draw susp1
     vect2 susp1_r =
         BikeFrameI * (365.0 - BikeFrameX) + BikeFrameJ * (BikeFrameY - 292.0) + BikeFrameR;
-    bike_render_affine_pic(bike->susp1, left_wheel_r, susp1_r, 0.06, 0.05, 0.03, false);
+    render_affine_pic(bike->susp1, left_wheel_r, susp1_r, 0.06, 0.05, 0.03, false);
 
     // Draw susp2
     vect2 susp2_r =
         BikeFrameI * (370.0 - BikeFrameX) + BikeFrameJ * (BikeFrameY - 520.0) + BikeFrameR;
-    bike_render_affine_pic(bike->susp2, susp2_r, right_wheel_r, 0.06, 0.0, 0.1, false);
+    render_affine_pic(bike->susp2, susp2_r, right_wheel_r, 0.06, 0.0, 0.1, false);
 
     // Draw flagtag flag
     if (has_flag) {
         vect2 flag_base_r = BikeFrameI * (500.0 + 107 - BikeFrameX) +
                             BikeFrameJ * (BikeFrameY + 114 - 600.0) + BikeFrameR;
         vect2 flag_tip_r = flag_base_r + (BikeFrameI * 356.0 + BikeFrameJ * 500.0) * 0.2;
-        bike_render_affine_pic(Lgr->flag, flag_base_r, flag_tip_r, 0.2, 0.0, 0.0,
+        render_affine_pic(Lgr->flag, flag_base_r, flag_tip_r, 0.2, 0.0, 0.0,
                           mot->flipped_bike);
     }
-
-
-    auto render_bike_part = [&](pic8* part, unsigned char transparency, bike_box* box) {
-        //vect2 r = BikeFrameIPixels * (box->x1 + 260 - BikeFrameX) +
-        //          BikeFrameJPixels * (BikeFrameY - (box->y1 + 260)) + BikeFrameRPixels;
-        //vect2 u = BikeFrameIPixels * (box->x2 - box->x1);
-        //vect2 v = BikeFrameJPixels * (box->y1 - box->y2);
-
-        vect2 r = BikeFrameI * (box->x1 + 260 - BikeFrameX) +
-                  BikeFrameJ * (BikeFrameY - (box->y1 + 260)) + BikeFrameR;
-        vect2 u = BikeFrameI * (box->x2 - box->x1);
-        vect2 v = BikeFrameJ * (box->y1 - box->y2);
-        bike_draw_affine_pic(part, transparency, u, v, r);
-    };
-
-
-
-
-
 
     // Draw bike frame
     unsigned char bike_part_transparency = bike->bike_part1->gpixel(0, 0);
@@ -206,7 +180,7 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     render_bike_part(bike->bike_part4, bike_part_transparency, &BikeBox4);
 
     // Calculations to draw the kuski
-    vect2 body_r = (mot->body_r - bottomleft_corner);
+    vect2 body_r = mot->body_r;
     vect2 hip_r = body_r + BikeFrameI * 75.0 + BikeFrameJ * (-47.0);
     vect2 shoulder_r = body_r + BikeFrameI * 47.0 + BikeFrameJ * 65.0;
     vect2 neck_r = body_r + BikeFrameI * 41.0 + BikeFrameJ * 70.0;
@@ -224,7 +198,7 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     }
 
     // Draw head
-    bike_render_rigidbody(bike->head, mot->head_r - bottomleft_corner, HeadRadius, mot->bike.rotation,
+    render_rigidbody(bike->head, mot->head_r, HeadRadius, mot->bike.rotation,
                      mot->flipped_bike);
 
     // Hand is located on the handlebars, unless we are volting
@@ -279,12 +253,12 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
     }
 
     // Draw the whole kuski (excluding head)
-    bike_render_affine_pic(bike->thigh, knee_r, hip_r, 0.14, 0.03, 0.1, mot->flipped_bike);
-    bike_render_affine_pic(bike->leg, foot_r, knee_r, 0.21, 0.03, 0.03, mot->flipped_bike);
+    render_affine_pic(bike->thigh, knee_r, hip_r, 0.14, 0.03, 0.1, mot->flipped_bike);
+    render_affine_pic(bike->leg, foot_r, knee_r, 0.21, 0.03, 0.03, mot->flipped_bike);
     const pic8* body = shirt ? shirt : bike->body;
-    bike_render_affine_pic(body, hip_r, neck_r, 0.2, 0.1, 0.05, mot->flipped_bike);
-    bike_render_affine_pic(bike->up_arm, elbow_r, shoulder_r, 0.11, 0.08, 0.1, !mot->flipped_bike);
-    bike_render_affine_pic(bike->forarm, hand_r, elbow_r, 0.076, 0.08, 0.1, mot->flipped_bike);
+    render_affine_pic(body, hip_r, neck_r, 0.2, 0.1, 0.05, mot->flipped_bike);
+    render_affine_pic(bike->up_arm, elbow_r, shoulder_r, 0.11, 0.08, 0.1, !mot->flipped_bike);
+    render_affine_pic(bike->forarm, hand_r, elbow_r, 0.076, 0.08, 0.1, mot->flipped_bike);
 
     // Draw foreground wheels
     StretchEnabled = false;
@@ -294,11 +268,11 @@ void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_met
             std::swap(left_wheel_r, right_wheel_r);
         }
         if (!left_wheel_in_back) {
-            bike_render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
+            render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
                     mot->left_wheel.rotation, false);
         }
         if (!right_wheel_in_back) {
-            bike_render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
+            render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
                     mot->right_wheel.rotation, false);
         }
     }

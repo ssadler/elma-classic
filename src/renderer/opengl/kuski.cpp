@@ -60,10 +60,9 @@ uniform usampler2D IndexTexture;
 uniform uint tColor;
 
 void main() {
-    //uint index = texture(IndexTexture, fragTexCoord).r;
-    //if (index == tColor) discard;
-    //FragColor = palette[index];
-    FragColor = vec4(1.0);
+    uint index = texture(IndexTexture, fragTexCoord).r;
+    if (index == tColor) discard;
+    FragColor = palette[index];
 }
 )";
 
@@ -93,7 +92,6 @@ static void init() {
     };
 
     Painter->buffer_data(6, &quadUnit, GL_STATIC_DRAW);
-    printf("INIT KUSKI\n");
     GL_DEBUG
 }
 
@@ -105,7 +103,6 @@ void opengl_bike_draw_affine_pic(
 
     if (!tex) {
         tex = upload_pic8_texture(affine);
-        printf("upload bike tex\n");
     }
 
     glActiveTexture(GL_TEXTURE0);
@@ -128,6 +125,7 @@ void opengl_bike_draw_affine_pic(
         delta = (distance * (1.0 - StretchFactor)) * StretchAxis;
         v = v - delta;
     }
+
 
     float mat3[9] = {
         float(u.x), float(u.y), 0.0f,

@@ -227,6 +227,7 @@ pic8* get_backbuffer_pic() override {
 
     void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
             vect2 u, vect2 v, vect2 r) override {
+
         opengl_bike_draw_affine_pic(affine, transparency, u, v, r);
     }
 

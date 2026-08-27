@@ -27,8 +27,6 @@
 #include <vector>
 
 
-void _render_bike(pic8* pic, bool has_flag, vect2 bottomleft_corner, const motorst* mot,
-                        const bike_metadata* metadata, const bike_pics* bike, const pic8* shirt);
 void _render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows);
 
 
@@ -210,9 +208,10 @@ class PicRenderer : public GameRenderer {
     }
 
 
-
     void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
             vect2 u, vect2 v, vect2 r) override {
+
+        r = r - bottomleft_corner;
 
         u.x *= MetersToPixels;
         u.y *= MetersToPixels;
@@ -223,8 +222,6 @@ class PicRenderer : public GameRenderer {
 
         draw_affine_pic(pic_view, affine, transparency, u, v, r);
     }
-
-
 };
 
 
