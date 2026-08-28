@@ -441,7 +441,7 @@ void GameRenderer::render() {
 
     end_frame();
 
-    //// Conditionally save screenshot
+    // Conditionally save screenshot
     handle_screenshot(pic);
 }
 

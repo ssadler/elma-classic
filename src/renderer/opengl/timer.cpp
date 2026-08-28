@@ -4,9 +4,19 @@
 #include <array>
 
 
+
+/*
+ * The timer is not it's own renderer, reason being that
+ * the digits invert the color beneath them and this isn't
+ * easy and/or performant to do in dedicated draw calls,
+ * so it's implemented as a filter and included by other shaders.
+ */
+
+
+
 /*
  *     1
- *   2   4 
+ *  2     4 
  *     8
  *  16   32
  *     64
@@ -77,6 +87,7 @@ void drawColon(vec2 refPos) {
     }
 }
 
+
 void drawDigit(vec2 refPos, int mask) {
 
     refPos += vec2(0.5);
@@ -88,47 +99,24 @@ void drawDigit(vec2 refPos, int mask) {
     float d = sdBox(refPos, vec2(w + 4, h * 2 + 4));
     if (d > 0.0) return;
     //FragColor += vec4(0.1, 0.1, 0.1, 0.0); // show area
+    
 
-    vec2 topPos = refPos + vec2(0.0, h*2+2);
-    if (sdBox(topPos, vec2(w, t)) < 0.0) {
-        if ((mask & 1) > 0) invert();
-        return;
+
+#define digitLeg(m, off) \
+    if ((mask & m) > 0 && sdBox(refPos + off, dims) < 0.0) { \
+        invert(); return; \
     }
 
-    vec2 midPos = refPos;
-    if (sdBox(midPos, vec2(w, t)) < 0.0) {
-        if ((mask & 8) > 0) invert();
-        return;
-    }
+    vec2 dims = vec2(w, t);
+    digitLeg(1,  vec2(0.0,  h*2+2));
+    digitLeg(8,  vec2(0.0,    0.0));
+    digitLeg(64, vec2(0.0, -h*2-2));
 
-    vec2 bottomPos = refPos + vec2(0.0, -h*2-2);
-    if (sdBox(bottomPos, vec2(w, t)) < 0.0) {
-        if ((mask & 64) > 0) invert();
-        return;
-    }
-
-    vec2 ltPos = refPos + vec2(-w-1, h+1);
-    if (sdBox(ltPos, vec2(t, h)) < 0.0) {
-        if ((mask & 2) > 0) invert();
-        return;
-    }
-
-    vec2 lbPos = refPos + vec2(-w-1, -h-1);
-    if (sdBox(lbPos, vec2(t, h)) < 0.0) {
-        if ((mask & 16) > 0) invert();
-        return;
-    }
-
-    vec2 rtPos = refPos + vec2(w+1, h+1);
-    if (sdBox(rtPos, vec2(t, h)) < 0.0) {
-        if ((mask & 4) > 0) invert();
-        return;
-    }
-
-    vec2 rbPos = refPos + vec2(w+1, -h-1);
-    if (sdBox(rbPos, vec2(t, h)) < 0.0) {
-        if ((mask & 32) > 0) invert();
-    }
+    dims = vec2(t, h);
+    digitLeg(2,  vec2(-w-1,  h+1));
+    digitLeg(16, vec2(-w-1, -h-1));
+    digitLeg(4,  vec2( w+1,  h+1));
+    digitLeg(32, vec2( w+1, -h-1));
 }
 
 

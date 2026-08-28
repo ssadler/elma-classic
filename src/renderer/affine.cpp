@@ -49,7 +49,7 @@ void set_stretch_parameters(vect2 bike_center, vect2 bike_i, double stretch,
 }
 
 // Apply stretch parameters
-// u, v, and r are in meters and not translated to bottomleft_corner
+// u, v, and r are in meters and NOT translated to bottomleft_corner
 void apply_stretch_parameters(vect2& u, vect2& v, vect2& r) {
     // Bike is turning! Let's stretch the bike
     if (StretchEnabled) {
@@ -71,7 +71,7 @@ void apply_stretch_parameters(vect2& u, vect2& v, vect2& r) {
 }
 
 // Draw affine pic
-// u, v, and r are in pixels and r is translated to bottomleft_corner
+// u, v, and r are in pixels and r IS translated to bottomleft_corner
 void draw_affine_pic(pic8* dest, const pic8* aff, unsigned char transparency,
         vect2 u, vect2 v, vect2 r) {
 

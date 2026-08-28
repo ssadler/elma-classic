@@ -1,32 +1,17 @@
-// #ifndef RENDER_CPP
-// #define RENDER_CPP
 
-
-#include "renderer/render.h"
 #include "editor/editor.h"
-#include "eol/console.h"
 #include "eol/eol.h"
 #include "eol/settings.h"
-#include "eol/status_messages.h"
-#include "game/driver.h"
 #include "game/game.h"
-#include "level/level.h"
 #include "level/object.h"
-#include "main.h"
-#include "physics/init.h"
-#include "pic/abc8.h"
 #include "pic/anim.h"
-#include "pic/lgr.h"
-#include "pic/pic8.h"
 #include "pic/surface.h"
-#include "platform/implementation.h"
 #include "renderer/affine.h"
 #include "renderer/canvas.h"
 #include "renderer/object_overlay.h"
+#include "renderer/render.h"
 #include "renderer/timer.h"
 #include <cmath>
-#include <cstring>
-#include <string>
 
 
 
@@ -237,5 +222,3 @@ GameRenderer* createPicRenderer(
 }
 #endif
 
-
-//#endif

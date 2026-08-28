@@ -38,7 +38,7 @@ void GameRenderer::render_bike(
     // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
     // height represents the vertical length of the affine_pic (thickness of the limb)
     auto render_affine_pic = [&](const pic8* affine, vect2 a, vect2 b, double height, 
-                                      double a_stretch, double b_stretch, bool flip) {
+                                 double a_stretch, double b_stretch, bool flip) {
         vect2 i = unit_vector(b - a);
         b = b + i * b_stretch;
         a = a - i * a_stretch;
@@ -53,12 +53,12 @@ void GameRenderer::render_bike(
 
 
     // Render a bike frame fragment
-    auto render_bike_part = [&](pic8* part, unsigned char transparency, bike_box* box) {
+    auto render_bike_part = [&](const pic8* affine, unsigned char transparency, bike_box* box) {
         vect2 r = BikeFrameI * (box->x1 + 260 - BikeFrameX) +
                   BikeFrameJ * (BikeFrameY - (box->y1 + 260)) + BikeFrameR;
         vect2 u = BikeFrameI * (box->x2 - box->x1);
         vect2 v = BikeFrameJ * (box->y1 - box->y2);
-        bike_draw_affine_pic(part, transparency, u, v, r);
+        bike_draw_affine_pic(affine, transparency, u, v, r);
     };
 
 

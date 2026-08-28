@@ -42,7 +42,10 @@ class GameRenderer {
     bool draw_player1;
     bool draw_player2;
     bool splitscreen;
-    double time; driver& driv1; driver& driv2; camera& current_camera; GameLoop loop;
+    double time;
+    driver& driv1, driv2;
+    camera& current_camera;
+    GameLoop loop;
     vect2 bottomleft_corner;
     vect2 center;
 

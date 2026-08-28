@@ -6,7 +6,6 @@
 #include "main.h"
 #include "vect2.h"
 #include <cstdio>
-#include <tuple>
 #include <string>
 #include <vector>
 #include <map>
@@ -91,6 +90,8 @@ class GraphicsProgramCommon {
     void uniform2fv(const char* name, size_t count, const float* data) const;
     void uniform_matrix_3fv(const char* name, size_t count, bool normalize, const float* data) const;
 };
+
+
 
 struct GraphicsVAO {
     std::vector<GlVertexAttributePointer> attribute_pointers;
@@ -252,70 +253,6 @@ class Graphics : public GraphicsProgramCommon {
   private:
 
     void _compile_program();
-};
-
-
-
-template <typename T,
-          typename TIter = decltype(std::begin(std::declval<T>())),
-          typename = decltype(std::end(std::declval<T>()))>
-constexpr auto enumerate(T && iterable)
-{
-    struct iterator
-    {
-        std::size_t i;
-        TIter iter;
-        bool operator != (const iterator & other) const { return iter != other.iter; }
-        void operator ++ () { ++i; ++iter; }
-        auto operator * () const { return std::tie(i, *iter); }
-    };
-    struct iterable_wrapper
-    {
-        T iterable;
-        auto begin() { return iterator{ 0, std::begin(iterable) }; }
-        auto end() { return iterator{ 0, std::end(iterable) }; }
-    };
-    return iterable_wrapper{ std::forward<T>(iterable) };
-}
-
-
-
-class gl_ring_buffer {
-  const int N_FRAMES = 3;
-  int stride;
-  int buftype;
-  int max_verts;
-  int offset = 0;
-
-  public:
-  GLuint vbo;
-
-  gl_ring_buffer(int _buftype, int _stride, int _max_verts)
-    : gl_ring_buffer(
-        _buftype, _stride, _max_verts,
-        []{ GLuint vbo; glGenBuffers(1, &vbo); return vbo; }()
-      ) {}
-
-  gl_ring_buffer(int _buftype, int _stride, int _max_verts, GLuint _vbo)
-    : stride(_stride), buftype(_buftype), max_verts(_max_verts), vbo(_vbo) {
-    glBindBuffer(buftype, vbo);
-    glBufferData(buftype, max_verts * N_FRAMES * stride, nullptr, GL_STREAM_DRAW);
-  }
-
-  int push_data(int num_verts, void* ptr) {
-    if (num_verts > max_verts) {
-      internal_error("gl_ring_buffer::push_data: num_verts > max_verts");
-    }
-    auto size = num_verts * stride;
-    if (offset + size > max_verts * stride * N_FRAMES) {
-      offset = 0;
-    }
-    glBindBuffer(buftype, vbo);
-    glBufferSubData(buftype, offset, size, ptr);
-    int o = offset;
-    offset += size;
-    return o / stride;
-  }
 };
 
 

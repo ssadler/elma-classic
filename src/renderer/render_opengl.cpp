@@ -1,12 +1,4 @@
 
-#include "editor/editor.h"
-#include "game/driver.h"
-#include "game/game.h"
-#include "level/level.h"
-#include "physics/init.h"
-#include "pic/lgr.h"
-#include "pic/surface.h"
-#include "platform/implementation.h"
 #include "platform/sdl/gl_renderer.h"
 #include "renderer/render.h"
 #include "renderer/opengl.h"
@@ -18,7 +10,7 @@
  * Methods definitions of classes are implicitly inline so we
  * just need to indicate that we don't want other non class top levels.
  */
-#define RENDER_PIC_IS_INCLUDE 1
+#define RENDER_PIC_IS_INCLUDE
 #include "render_pic.cpp"
 
 
@@ -119,7 +111,6 @@ class OpenGLRenderer : public PicRenderer {
                 Background.init();
                 Kuski.init();
                 Objects.init();
-                GlMinimap.init();
                 GlDivider.init();
             }
 

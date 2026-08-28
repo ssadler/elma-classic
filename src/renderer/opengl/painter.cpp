@@ -24,7 +24,8 @@ void GraphicsVAO::compile() {
     int stride = get_stride();
     size_t offset = 0;
 
-    for (auto [i, p]: enumerate(attribute_pointers)) {
+    for (int i=0; i<attribute_pointers.size(); i++) {
+        auto& p = attribute_pointers[i];
 
         glEnableVertexAttribArray(i);
 

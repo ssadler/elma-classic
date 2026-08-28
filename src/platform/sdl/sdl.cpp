@@ -532,24 +532,25 @@ bool platform_save_screenshot() {
         return false;
     }
 
-    std::filesystem::create_directories("screenshots");
 
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::floor<std::chrono::seconds>(now);
+    std::filesystem::create_directories("screenshots");
+    std::string _filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}", time);
 
 
     if (EolSettings->renderer() == RendererType::OpenGL) {
 
         auto width = SCREEN_WIDTH;
         auto height = SCREEN_HEIGHT;
-        std::string filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}.png", time);
+        std::string filename = _filename + ".png";
 
         // Read RGB pixels (3 channels)
         auto pixels = std::make_unique<unsigned char[]>(3 * width * height);
         glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.get());
 
         // fire and forget
-        std::thread([=](std::unique_ptr<unsigned char[]> pixels){
+        std::thread([=](std::unique_ptr<unsigned char[]> pixels) {
             // returns 0 on failure and non-0 on success
             stbi_write_png(filename.c_str(), width, height, 3, pixels.get(), width * 3);
         }, std::move(pixels)).detach();
@@ -557,6 +558,6 @@ bool platform_save_screenshot() {
         return 0;
     }
 
-    std::string filename = std::format("screenshots/{:%Y-%m-%d_%H-%M-%S}.bmp", time);
+    std::string filename = _filename + ".bmp";
     return SDL_SaveBMP(SDLSurfacePaletted, filename.c_str()) == 0;
 }
