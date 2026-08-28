@@ -309,7 +309,7 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
     render_back(player1);
 
     // Draw the objects
-    render_objects(spy_kuski);
+    render_objects();
 
     // Select the correct bike for each player
     bike_pics* bike1 = &Lgr->bike1;
@@ -422,7 +422,7 @@ void GameRenderer::render() {
         calculate_viewpoints(splitscreen);
     }
 
-    render_background(GameBackgroundRender);
+    render_qframe(GameBackgroundRender);
 
     // Draw 1 or 2 players
     if (splitscreen) {

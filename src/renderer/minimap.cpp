@@ -51,8 +51,8 @@ static void render_minimap_icon(pic8* pic, int x, int y, unsigned char palette_i
 }
 
 
-void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
-    vect2 bottomleft_corner, vect2 camera_pos) {
+void render_minimap_subview(bool player1, pic8* minimap_view, const motorst* other_motor,
+                            vect2 bottomleft_corner, vect2 camera_pos) {
     // Draw the background (polygons)
     CanvasMinimap->render_minimap(player1, minimap_view, bottomleft_corner, 0, 0, MinimapWidth - 1,
                                   MinimapHeight - 1);

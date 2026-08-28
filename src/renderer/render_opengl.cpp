@@ -34,7 +34,6 @@ class OpenGLRenderer : public PicRenderer {
         PicRenderer::subview(left, bottom, right, top);
 
 
-
         /*
          * Update frustum
          */
@@ -137,7 +136,7 @@ class OpenGLRenderer : public PicRenderer {
         }
     }
 
-    void render_background(bool) override {
+    void render_qframe(bool) override {
         /*
          * Render divider for splitscreen.
          */
@@ -147,7 +146,7 @@ class OpenGLRenderer : public PicRenderer {
         }
     }
 
-    void render_objects(const kuski* spy_kuski) override {
+    void render_objects() override {
         Objects.render(spy_kuski);
         GL_DEBUG
     }

@@ -50,16 +50,15 @@ class GameRenderer {
     vect2 bottomleft_corner;
     vect2 center;
 
-    public:
     virtual void start_frame() = 0;
     virtual void end_frame() = 0;
-    virtual void render_background(bool scale_changed) = 0;
+    virtual void render_qframe(bool scale_changed) = 0;
     virtual void subview(int left, int bottom, int right, int top) = 0;
     virtual void render_back(bool player1) = 0;
     virtual void render_front(bool player1) = 0;
-    virtual void render_objects(const kuski* spy_kuski) = 0;
+    virtual void render_objects() = 0;
     virtual void render_minimap(
-            bool player1, motorst* other_motor,
+            bool player1, const motorst* other_motor,
             int x1, int y1, int x2, int y2,
             vect2 bottomleft_corner, vect2 camera_pos
     ) = 0;
@@ -78,9 +77,10 @@ class GameRenderer {
     void dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
                           motorst* other_motor);
 
+
+    public:
     GameRenderer(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
     virtual ~GameRenderer() = default;
-
     void render();
 };
 
@@ -89,8 +89,8 @@ GameRenderer* createPicRenderer(
         double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop);
 
 
-void render_minimap_subview(bool player1, pic8* minimap_view, motorst* other_motor,
-    vect2 bottomleft_corner, vect2 camera_pos);
+void render_minimap_subview(bool player1, pic8* minimap_view, const motorst* other_motor,
+                            vect2 bottomleft_corner, vect2 camera_pos);
 
 
 #endif
