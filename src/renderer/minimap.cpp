@@ -1,27 +1,10 @@
-#include "renderer/render.h"
 #include "editor/editor.h"
-#include "eol/console.h"
 #include "eol/eol.h"
-#include "eol/settings.h"
-#include "eol/status_messages.h"
 #include "game/driver.h"
 #include "game/game.h"
-#include "level/level.h"
 #include "level/object.h"
-#include "physics/init.h"
-#include "pic/abc8.h"
-#include "pic/anim.h"
-#include "pic/lgr.h"
 #include "pic/pic8.h"
-#include "pic/surface.h"
-#include "platform/implementation.h"
-#include "renderer/affine.h"
 #include "renderer/canvas.h"
-#include "renderer/object_overlay.h"
-#include "renderer/timer.h"
-#include <cmath>
-
-
 
 // In pixels from the bottom-left corner of screen
 // (defined in render.cpp)
@@ -29,10 +12,6 @@ extern int MinimapWidth;
 extern int MinimapHeight;
 extern int MinimapX;
 extern int MinimapDx;
-
-
-
-
 
 // Render a 3x3 square onto the minimap
 static void render_minimap_icon(pic8* pic, int x, int y, unsigned char palette_id) {
@@ -50,13 +29,11 @@ static void render_minimap_icon(pic8* pic, int x, int y, unsigned char palette_i
     pic->ppixel(x + 1, y + 1, palette_id);
 }
 
-
 void render_minimap_subview(bool player1, pic8* minimap_view, const motorst* other_motor,
                             vect2 bottomleft_corner, vect2 camera_pos) {
     // Draw the background (polygons)
     CanvasMinimap->render_minimap(player1, minimap_view, bottomleft_corner, 0, 0, MinimapWidth - 1,
                                   MinimapHeight - 1);
-
 
     // Draw the objects
     int corner_x;
@@ -126,5 +103,3 @@ void render_minimap_subview(bool player1, pic8* minimap_view, const motorst* oth
     int bike_y = (int)(camera_pos.y * MetersToMinimapPixels);
     render_minimap_icon(minimap_view, bike_x, bike_y, bike1_id);
 }
-
-

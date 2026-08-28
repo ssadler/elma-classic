@@ -22,7 +22,6 @@
 #include "renderer/canvas.h"
 #include "renderer/object_overlay.h"
 #include "renderer/timer.h"
-#include "renderer/opengl.h"
 #include "util/util.h"
 #include <algorithm>
 #include <cmath>
@@ -43,7 +42,7 @@ static double VisibleFraction = 1.0;
 constexpr double VISIBLE_FRACTION_SCALING_FACTOR = 1.1;
 
 void reset_game_background() { GameBackgroundRender = true; }
-static bool is_opengl_render() { 
+static bool is_opengl_render() {
     return !std::getenv("CPURENDER") && EolSettings->renderer() == RendererType::OpenGL;
 }
 
@@ -162,7 +161,6 @@ static void calculate_viewpoints(bool splitscreen) {
     MinimapDx = GameViewWidth - 2 * MinimapX - MinimapWidth;
 }
 
-
 static void handle_screenshot(pic8* pic) {
     if (VideoRecordingMode) {
         std::string filename = std::format("snp{:05}.pcx", VideoFrameIndex);
@@ -191,7 +189,6 @@ static bool local_flag_tag_has_flag(bool player1, double time) {
     // Blink the flag away while immunity applies
     return FlagTagImmunity && (int)(time * 30.0) % 2 != 0;
 }
-
 
 static bool bike_in_view(const motorst* mot, vect2 center) {
     double distance = (mot->bike.r - center).length();
@@ -224,8 +221,8 @@ void render_info_panel(pic8* pic, const std::vector<info_panel_row>& rows) {
     }
 }
 
-static std::vector<info_panel_row> get_info_rows(
-        bool bottom_player, GameLoop loop, camera current_camera, driver& driv) {
+static std::vector<info_panel_row> get_info_rows(bool bottom_player, GameLoop loop,
+                                                 camera current_camera, driver& driv) {
 
     // Build the bottom-right info panel rows.
     // rows are rendered in the order they were added (last added on top)
@@ -242,7 +239,6 @@ static std::vector<info_panel_row> get_info_rows(
                 info_rows.push_back({"one wheel", driv.mot->one_wheel_failed ? "no" : "yes"});
             }
         }
-
 
         if (bottom_player) {
             // FPS
@@ -270,7 +266,8 @@ static std::vector<info_panel_row> get_info_rows(
 }
 
 // Render the view for one player
-void GameRenderer::render_view(bool player1, bool bottom_player, int left, int bottom, int right, int top) {
+void GameRenderer::render_view(bool player1, bool bottom_player, int left, int bottom, int right,
+                               int top) {
 
     auto driv = player1 ? driv1 : driv2;
     auto other_driv = player1 ? driv2 : driv1;
@@ -282,7 +279,6 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
         if (!Single && FlagTag) {
             flagtag_time = player1 ? FlagTimeA : FlagTimeB;
         }
-        prerender_timers(BestTime, flagtag_time, GameViewWidth, GameViewHeight);
     }
 
     // Calculate frame of reference
@@ -296,7 +292,8 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
         bike_center = spy_kuski->spy_data()->mot.bike.r;
     }
 
-    bottomleft_corner.x = bike_center.x - (CameraX + driv.meta.camera_turning.turn_phase * CameraDx);
+    bottomleft_corner.x =
+        bike_center.x - (CameraX + driv.meta.camera_turning.turn_phase * CameraDx);
     bottomleft_corner.y = bike_center.y - CameraY;
 
     center.x = bottomleft_corner.x + (SCREEN_WIDTH / 2.0) * PixelsToMeters;
@@ -330,8 +327,8 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
             }
 
             if (bike_in_view(&k->mot, center)) {
-                render_bike(EolClient->kuski_has_flag(ku.id), &k->mot,
-                            &k->metadata, bike2, ku.shirt);
+                render_bike(EolClient->kuski_has_flag(ku.id), &k->mot, &k->metadata, bike2,
+                            ku.shirt);
             }
         }
     }
@@ -339,8 +336,8 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
     if (spy_kuski) {
         const spy_data* k = spy_kuski->spy_data();
         if (k && bike_in_view(&k->mot, center)) {
-            render_bike(EolClient->kuski_has_flag(spy_kuski->id), &k->mot,
-                        &k->metadata, bike2, spy_kuski->shirt);
+            render_bike(EolClient->kuski_has_flag(spy_kuski->id), &k->mot, &k->metadata, bike2,
+                        spy_kuski->shirt);
         }
     }
 
@@ -348,8 +345,8 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
         if (!Single) {
             // Draw the other bike if it's on-screen
             if (bike_in_view(other_driv.mot, center)) {
-                render_bike(local_flag_tag_has_flag(!player1, time),
-                            other_driv.mot, &other_driv.meta, bike2, nullptr);
+                render_bike(local_flag_tag_has_flag(!player1, time), other_driv.mot,
+                            &other_driv.meta, bike2, nullptr);
             }
         }
 
@@ -395,10 +392,13 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
     }
 }
 
-
-GameRenderer::GameRenderer(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop)
-    : time(time), driv1(driv1), driv2(driv2), current_camera(current_camera), loop(loop)
-{
+GameRenderer::GameRenderer(double time, driver& driv1, driver& driv2, camera& current_camera,
+                           GameLoop loop)
+    : time(time),
+      driv1(driv1),
+      driv2(driv2),
+      current_camera(current_camera),
+      loop(loop) {
     // Determine who we are going to draw (player 1, player 2 or both)
     draw_player1 = driv1.draw_view;
     draw_player2 = driv2.draw_view;
@@ -447,11 +447,9 @@ void GameRenderer::render() {
     handle_screenshot(pic);
 }
 
-
-
 // Render the entire minimap
 void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect2 bike_center,
-                           motorst* other_motor) {
+                                    motorst* other_motor) {
     // Calculate minimap size and minimap frame of reference
     double minimap_width = MinimapWidth * MinimapScaleFactor * PixelsToMeters;
     double minimap_height = MinimapHeight * MinimapScaleFactor * PixelsToMeters;
@@ -483,23 +481,16 @@ void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect
     const int minimap_y1 = 1;
     const int minimap_y2 = minimap_y1 + MinimapHeight - 1;
 
-    render_minimap(player1, other_motor,
-                   minimap_x1, minimap_y1, minimap_x2, minimap_y2,
+    render_minimap(player1, other_motor, minimap_x1, minimap_y1, minimap_x2, minimap_y2,
                    bottomleft_corner, camera_pos);
 }
-
-
-
 
 void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
     reload_graphic_assets();
 
     fps::update();
 
-    GameRenderer* renderer = is_opengl_render() ?
-        createOpenGLRenderer(time, driv1, driv2, current_camera, loop) :
-        createPicRenderer(time, driv1, driv2, current_camera, loop);
+    auto renderer = createPicRenderer(time, driv1, driv2, current_camera, loop);
 
     renderer->render();
-    delete renderer;
 }

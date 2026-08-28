@@ -72,8 +72,8 @@ void apply_stretch_parameters(vect2& u, vect2& v, vect2& r) {
 
 // Draw affine pic
 // u, v, and r are in pixels and r IS translated to bottomleft_corner
-void draw_affine_pic(pic8* dest, const pic8* aff, unsigned char transparency,
-        vect2 u, vect2 v, vect2 r) {
+void draw_affine_pic(pic8* dest, const pic8* aff, unsigned char transparency, vect2 u, vect2 v,
+                     vect2 r) {
 
     // Check if the picture is rotated at a 90-degree offset +- tolerance of MINIMUM_ROTATION.
     // The reason why we do this is linear algebra: it is impossible to invert a matrix that

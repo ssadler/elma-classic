@@ -1,21 +1,14 @@
 
-#include "renderer/render.h"
 #include "physics/init.h"
 #include "pic/lgr.h"
 #include "renderer/affine.h"
+#include "renderer/render.h"
 #include "util/util.h"
 #include <cmath>
 
-
-
 // Render an entire bike + kuski
-void GameRenderer::render_bike(
-    bool has_flag,
-    const motorst* mot,
-    const bike_metadata* metadata,
-    const bike_pics* bike,
-    const pic8* shirt
-) {
+void GameRenderer::render_bike(bool has_flag, const motorst* mot, const bike_metadata* metadata,
+                               const bike_pics* bike, const pic8* shirt) {
 
     // Bike positionals
     double BikeFrameX;
@@ -24,11 +17,9 @@ void GameRenderer::render_bike(
     vect2 BikeFrameJ;
     vect2 BikeFrameR;
 
-
     ////////////////////////////////////////////////////////////////////////////////
     // LAMBDAS        (it's nice to have visual hints in large functions)
     ////////////////////////////////////////////////////////////////////////////////
-
 
     // Render an affine_pic (remember all affine_pic images are loaded sideways in the lgr)
     // All units are in meters
@@ -37,7 +28,7 @@ void GameRenderer::render_bike(
     // Along the axis of the vector b->a, displace coordinate a by `a_stretch` meters
     // Along the axis of the vector a->b, displace coordinate b by `b_stretch` meters
     // height represents the vertical length of the affine_pic (thickness of the limb)
-    auto render_affine_pic = [&](const pic8* affine, vect2 a, vect2 b, double height, 
+    auto render_affine_pic = [&](const pic8* affine, vect2 a, vect2 b, double height,
                                  double a_stretch, double b_stretch, bool flip) {
         vect2 i = unit_vector(b - a);
         b = b + i * b_stretch;
@@ -51,7 +42,6 @@ void GameRenderer::render_bike(
         bike_draw_affine_pic(affine, affine->gpixel(0, 0), u, v * 2.0, a);
     };
 
-
     // Render a bike frame fragment
     auto render_bike_part = [&](const pic8* affine, unsigned char transparency, bike_box* box) {
         vect2 r = BikeFrameI * (box->x1 + 260 - BikeFrameX) +
@@ -60,7 +50,6 @@ void GameRenderer::render_bike(
         vect2 v = BikeFrameJ * (box->y1 - box->y2);
         bike_draw_affine_pic(affine, transparency, u, v, r);
     };
-
 
     // Render a wheel or head affine_pic
     auto render_rigidbody = [&](const pic8* affine, vect2 r, double radius, double rotation,
@@ -72,12 +61,9 @@ void GameRenderer::render_bike(
         render_affine_pic(affine, r + direction, r - direction, radius, 0.0, 0.0, flip);
     };
 
-
     ////////////////////////////////////////////////////////////////////////////////
     // OK ENOUGH LAMBDAS, GET TO WORK
     ////////////////////////////////////////////////////////////////////////////////
-
-
 
     double arm_position = metadata->arm_position;
     double turn_phase = metadata->bike_turning.turn_phase;
@@ -109,12 +95,12 @@ void GameRenderer::render_bike(
     // Render background wheels
     constexpr double WHEEL_RENDER_RADIUS = 0.395;
     if (left_wheel_in_back) {
-        render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
-                mot->left_wheel.rotation, false);
+        render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS, mot->left_wheel.rotation,
+                         false);
     }
     if (right_wheel_in_back) {
-        render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
-                mot->right_wheel.rotation, false);
+        render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS, mot->right_wheel.rotation,
+                         false);
     }
 
     // Get the bike position and angle
@@ -163,8 +149,7 @@ void GameRenderer::render_bike(
         vect2 flag_base_r = BikeFrameI * (500.0 + 107 - BikeFrameX) +
                             BikeFrameJ * (BikeFrameY + 114 - 600.0) + BikeFrameR;
         vect2 flag_tip_r = flag_base_r + (BikeFrameI * 356.0 + BikeFrameJ * 500.0) * 0.2;
-        render_affine_pic(Lgr->flag, flag_base_r, flag_tip_r, 0.2, 0.0, 0.0,
-                          mot->flipped_bike);
+        render_affine_pic(Lgr->flag, flag_base_r, flag_tip_r, 0.2, 0.0, 0.0, mot->flipped_bike);
     }
 
     // Draw bike frame
@@ -193,8 +178,7 @@ void GameRenderer::render_bike(
     }
 
     // Draw head
-    render_rigidbody(bike->head, mot->head_r, HeadRadius, mot->bike.rotation,
-                     mot->flipped_bike);
+    render_rigidbody(bike->head, mot->head_r, HeadRadius, mot->bike.rotation, mot->flipped_bike);
 
     // Hand is located on the handlebars, unless we are volting
     vect2 hand_r = susp1_r;
@@ -264,11 +248,11 @@ void GameRenderer::render_bike(
         }
         if (!left_wheel_in_back) {
             render_rigidbody(bike->wheel, left_wheel_r, WHEEL_RENDER_RADIUS,
-                    mot->left_wheel.rotation, false);
+                             mot->left_wheel.rotation, false);
         }
         if (!right_wheel_in_back) {
             render_rigidbody(bike->wheel, right_wheel_r, WHEEL_RENDER_RADIUS,
-                    mot->right_wheel.rotation, false);
+                             mot->right_wheel.rotation, false);
         }
     }
 }

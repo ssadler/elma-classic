@@ -13,16 +13,13 @@
 #include "renderer/timer.h"
 #include <cmath>
 
-
-
 /*
  * Renderer which draws to a pic8* buffer
  */
 
 class PicRenderer : public GameRenderer {
 
-    protected:
-
+  protected:
     // backbuffer
     pic8* pic_main;
     // Not a pointer because we own it
@@ -38,9 +35,7 @@ class PicRenderer : public GameRenderer {
     }
 
     //
-    void end_frame() override {
-        unlock_backbuffer_pic();
-    }
+    void end_frame() override { unlock_backbuffer_pic(); }
 
     // Specify where game view is drawn
     void subview(int left, int bottom, int right, int top) override {
@@ -60,14 +55,14 @@ class PicRenderer : public GameRenderer {
 
     // Draw sky
     void render_back(bool player1) override {
-        CanvasBack->render(player1, &pic_view, bottomleft_corner,
-                           0, 0, GameViewWidth - 1, GameViewHeight - 1);
+        CanvasBack->render(player1, &pic_view, bottomleft_corner, 0, 0, GameViewWidth - 1,
+                           GameViewHeight - 1);
     }
 
     // Draw ground
     void render_front(bool player1) override {
-        CanvasFront->render(player1, &pic_view, bottomleft_corner,
-                            0, 0, GameViewWidth - 1, GameViewHeight - 1);
+        CanvasFront->render(player1, &pic_view, bottomleft_corner, 0, 0, GameViewWidth - 1,
+                            GameViewHeight - 1);
     }
 
     //
@@ -107,7 +102,8 @@ class PicRenderer : public GameRenderer {
             if (State->animated_objects) {
                 switch (obj->type) {
                 case object::Type::Food:
-                    obj_frame = Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_time(time);
+                    obj_frame =
+                        Lgr->food[obj->animation % Lgr->food_count]->get_frame_by_time(time);
                     phase_y_offset =
                         (int)(5.0 * EolSettings->zoom() * sin(time * 15.5 + obj->floating_phase));
                     break;
@@ -142,7 +138,8 @@ class PicRenderer : public GameRenderer {
                 }
             }
 
-            blit8(&pic_view, obj_frame, obj->canvas_x - corner_x, obj->canvas_y - corner_y + phase_y_offset);
+            blit8(&pic_view, obj_frame, obj->canvas_x - corner_x,
+                  obj->canvas_y - corner_y + phase_y_offset);
 
             if (EolSettings->show_gravity_arrows() && obj->type == object::Type::Food &&
                 obj->property != object::Property::None) {
@@ -153,8 +150,7 @@ class PicRenderer : public GameRenderer {
     }
 
     //
-    void render_minimap(bool player1, const motorst* other_motor,
-                        int x1, int y1, int x2, int y2,        
+    void render_minimap(bool player1, const motorst* other_motor, int x1, int y1, int x2, int y2,
                         vect2 bottomleft_corner, vect2 camera_pos) override {
 
         const int border_x1 = x1 - 1;
@@ -162,8 +158,8 @@ class PicRenderer : public GameRenderer {
         const int border_y1 = y1 - 1;
         const int border_y2 = y2 + 1;
 
-        if (border_x1 < 0 || border_y1 < 0 ||
-                border_x2 >= pic_view.get_width() || border_y2 >= pic_view.get_height()) {
+        if (border_x1 < 0 || border_y1 < 0 || border_x2 >= pic_view.get_width() ||
+            border_y2 >= pic_view.get_height()) {
             // Minimap doesn't fit on the screen, so skip drawing it entirely
             return;
         }
@@ -198,8 +194,8 @@ class PicRenderer : public GameRenderer {
     };
 
     //
-    void render_timers(const char* best_time_text, double flag_tag_time,
-                       int dest_width, int dest_height) override {
+    void render_timers(const char* best_time_text, double flag_tag_time, int dest_width,
+                       int dest_height) override {
         double shown_time = time;
         if (Single && EolClient->is_spying()) {
             shown_time =
@@ -211,13 +207,11 @@ class PicRenderer : public GameRenderer {
     };
 
     // Get the backbuffer (whole frame) picture
-    pic8* get_backbuffer_pic() override {
-        return pic_main;
-    }
+    pic8* get_backbuffer_pic() override { return pic_main; }
 
     // Draw bike / kuski component
-    void bike_draw_affine_pic(const pic8* affine, unsigned char transparency,
-                              vect2 u, vect2 v, vect2 r) override {
+    void bike_draw_affine_pic(const pic8* affine, unsigned char transparency, vect2 u, vect2 v,
+                              vect2 r) override {
 
         apply_stretch_parameters(u, v, r);
 
@@ -233,13 +227,10 @@ class PicRenderer : public GameRenderer {
         draw_affine_pic(&pic_view, affine, transparency, u, v, r);
     }
 
-    public:
-
+  public:
     // Include parent methods
     using GameRenderer::GameRenderer;
 };
-
-
 
 /*
  * Top level definitions other than PicRenderer conditional so that
@@ -248,9 +239,8 @@ class PicRenderer : public GameRenderer {
  */
 
 #ifndef RENDER_PIC_IS_INCLUDE
-GameRenderer* createPicRenderer(
-        double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
-    return new PicRenderer(time, driv1, driv2, current_camera, loop);
+std::unique_ptr<GameRenderer> createPicRenderer(double time, driver& driv1, driver& driv2,
+                                                camera& current_camera, GameLoop loop) {
+    return std::make_unique<PicRenderer>(time, driv1, driv2, current_camera, loop);
 }
 #endif
-
