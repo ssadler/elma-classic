@@ -1,26 +1,10 @@
 
 #include "renderer/render.h"
-#include "eol/console.h"
-#include "eol/eol.h"
-#include "eol/status_messages.h"
-#include "game/driver.h"
-#include "level/level.h"
 #include "physics/init.h"
-#include "pic/abc8.h"
-#include "pic/anim.h"
 #include "pic/lgr.h"
-#include "pic/pic8.h"
-#include "pic/surface.h"
-#include "platform/implementation.h"
 #include "renderer/affine.h"
-#include "renderer/canvas.h"
-#include "renderer/object_overlay.h"
-#include "renderer/timer.h"
 #include "util/util.h"
-#include "vect2.h"
-#include <algorithm>
 #include <cmath>
-#include <cstring>
 
 
 
@@ -90,7 +74,7 @@ void GameRenderer::render_bike(
 
 
     ////////////////////////////////////////////////////////////////////////////////
-    // OK ENOUGH LAMBDAS
+    // OK ENOUGH LAMBDAS, GET TO WORK
     ////////////////////////////////////////////////////////////////////////////////
 
 
