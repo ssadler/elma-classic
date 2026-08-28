@@ -2,6 +2,7 @@
 #define DRIVER_H
 
 #include "game/recorder.h"
+#include <string>
 
 struct motorst;
 struct player_keys;
@@ -30,6 +31,14 @@ struct bike_metadata {
     turning_data camera_turning;
 };
 
+struct motor_stats {
+    double speed = 0.0;
+    std::string format_speed() const;
+
+    double max_speed = 0.0;
+    std::string format_max_speed() const;
+};
+
 struct driver {
     motorst* mot;
     bike_metadata meta;
@@ -37,13 +46,16 @@ struct driver {
     player_keys* keys;
     hud_visibility* hud;
     bike_sound sound;
+    motor_stats stats;
 
     bool dead = false;
     int finish_time = 0;
     bool draw_view = true;
+    bool one_frame_brake_pending = false;
 
     driver(motorst* mot, recorder* rec, player_keys* keys, hud_visibility* hud);
     void reset_metadata();
+    void update_speed();
 };
 
 #endif

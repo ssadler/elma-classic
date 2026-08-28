@@ -17,7 +17,6 @@
 #include "renderer/canvas.h"
 #include "renderer/grass.h"
 #include "renderer/render.h"
-#include "util/file_iter.h"
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -71,7 +70,7 @@ void invalidate_lgr_cache() {
     CurrentLgrName[0] = '\0';
 }
 
-static bool try_access_lgr(const char* lgr_name, const char* backup_lgr) {
+static bool lgr_exists(const char* lgr_name, const char* backup_lgr) {
     filepath path;
     sprintf(path, "lgr/%s.lgr", lgr_name);
     if (std::filesystem::exists(path)) {
@@ -80,11 +79,6 @@ static bool try_access_lgr(const char* lgr_name, const char* backup_lgr) {
 
     if (!backup_lgr) {
         return false;
-    }
-
-    // LGR not found
-    if (!Level) {
-        internal_error("load_lgr_file !Level!");
     }
 
     // Display warning
@@ -113,7 +107,7 @@ static bool try_access_lgr(const char* lgr_name, const char* backup_lgr) {
 }
 
 bool lgrfile::try_load_lgr(const char* name, const char* desc) {
-    if (!try_access_lgr(name, desc)) {
+    if (!lgr_exists(name, desc)) {
         return false;
     }
 
@@ -147,18 +141,9 @@ void lgrfile::load_lgr_file(const char* lgr_name) {
 
     if (!is_default && !override_is_same) {
         const char* desc = override_is_default ? "default.lgr" : "the default lgr file";
-
         if (try_load_lgr(lgr_load_name, desc)) {
             return;
         }
-
-        if (!Level) {
-            internal_error("load_lgr_file !Level!");
-        }
-
-        LevelChanged = true;
-        strcpy(Level->lgr_name, "default");
-        Level->lgr_not_found = true;
     }
 
     if (!override_is_default) {

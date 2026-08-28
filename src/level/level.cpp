@@ -13,11 +13,13 @@
 #include "physics/init.h"
 #include "pic/lgr.h"
 #include "platform/utils.h"
-#include "util/file_iter.h"
 #include "util/util.h"
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 #include <optional>
 
 constexpr int TOP_TEN_HEADER = 6754362;
@@ -79,7 +81,6 @@ const char* get_internal_level_name(int index) {
 
 level::level() {
     level_id = 0;
-    lgr_not_found = false;
     objects_flipped = false;
     topology_errors = false;
     topten_file_offset = 0;
@@ -124,8 +125,8 @@ level::~level() {
     }
 }
 
-bool level::discard_missing_lgr_assets(lgrfile* lgr) {
-    bool sprites_deleted = false;
+void level::load_sprite_wireframes(lgrfile* lgr, bool warn_if_missing) {
+    bool missing_sprites = false;
     for (int i = 0; i < MAX_SPRITES; i++) {
         if (!sprites[i]) {
             continue;
@@ -137,17 +138,14 @@ bool level::discard_missing_lgr_assets(lgrfile* lgr) {
         spr->wireframe_height = PixelsToMeters * DEFAULT_SPRITE_WIREFRAME;
 
         if (spr->picture_name[0] && (spr->mask_name[0] || spr->texture_name[0])) {
-            internal_error("discard_missing_lgr_assets invalid pic/mask/text combination!");
+            internal_error("load_sprite_wireframes invalid pic/mask/text combination!");
         }
 
-        // Delete any sprite not existing in lgr, and also set the size of the asset
+        // Set the editor size of each sprite, and check if any sprites are missing
         if (spr->picture_name[0]) {
             int index = lgr->get_picture_index(spr->picture_name);
-            if (index < 0) {
-                spr->picture_name[0] = 0;
-                delete sprites[i];
-                sprites[i] = nullptr;
-                sprites_deleted = true;
+            if (lgr->get_picture_index(spr->picture_name) < 0) {
+                missing_sprites = true;
                 continue;
             }
 
@@ -157,10 +155,7 @@ bool level::discard_missing_lgr_assets(lgrfile* lgr) {
             if (spr->mask_name[0]) {
                 int index = lgr->get_mask_index(spr->mask_name);
                 if (index < 0) {
-                    spr->mask_name[0] = 0;
-                    delete sprites[i];
-                    sprites[i] = nullptr;
-                    sprites_deleted = true;
+                    missing_sprites = true;
                     continue;
                 }
 
@@ -168,30 +163,19 @@ bool level::discard_missing_lgr_assets(lgrfile* lgr) {
                 spr->wireframe_height = lgr->masks[index].height * PixelsToMeters;
 
                 if (spr->texture_name[0]) {
-                    int index = lgr->get_texture_index(spr->texture_name);
-                    if (index < 0) {
-                        spr->texture_name[0] = 0;
-                        delete sprites[i];
-                        sprites[i] = nullptr;
-                        sprites_deleted = true;
+                    if (lgr->get_texture_index(spr->texture_name) < 0) {
+                        missing_sprites = true;
+                        continue;
                     }
                 }
             }
         }
     }
 
-    bool sprites_shifted = true;
-    while (sprites_shifted) {
-        sprites_shifted = false;
-        for (int i = 0; i < MAX_SPRITES - 1; i++) {
-            if (!sprites[i] && sprites[i + 1]) {
-                sprites[i] = sprites[i + 1];
-                sprites[i + 1] = nullptr;
-                sprites_shifted = true;
-            }
-        }
+    if (missing_sprites && warn_if_missing) {
+        dialog("The LGR file has changed since the last edition of this level and",
+               "some pictures do not exist in the LGR file!");
     }
-    return sprites_deleted;
 }
 
 polygon* level::get_closest_vertex(double x, double y, int* vertex_index, double* distance,
@@ -597,7 +581,6 @@ static bool write_encrypted(void* buffer, int length, FILE* h) {
 }
 
 void level::from_file(const char* filename, bool internal) {
-    lgr_not_found = false;
     objects_flipped = false;
     topology_errors = false;
     topten_file_offset = 0;
@@ -918,16 +901,15 @@ void level::save(const char* filename, bool skip_topology) {
 
     if (SAVE_INTERNAL) {
         // Internals don't have a level name
-        char empty_level_name[LEVEL_NAME_LENGTH + 1];
-        memset(empty_level_name, 0, sizeof(empty_level_name));
-        fwrite(empty_level_name, 1, LEVEL_NAME_LENGTH + 1, h);
+        const char empty_level_name[LEVEL_NAME_LENGTH + 1] = {};
+        util::text::fwrite_array(empty_level_name, LEVEL_NAME_LENGTH + 1, h);
     } else {
-        fwrite(level_name, 1, LEVEL_NAME_LENGTH + 1, h);
+        util::text::fwrite_array(level_name, LEVEL_NAME_LENGTH + 1, h);
     }
 
-    fwrite(lgr_name, 1, 16, h);
-    fwrite(foreground_name, 1, 10, h);
-    fwrite(background_name, 1, 10, h);
+    util::text::fwrite_array(lgr_name, 16, h);
+    util::text::fwrite_array(foreground_name, 10, h);
+    util::text::fwrite_array(background_name, 10, h);
 
     int polygon_count = 0;
     for (int i = 0; i < MAX_POLYGONS; i++) {
@@ -1207,4 +1189,71 @@ void level::unflip_objects() {
             obj->r.y = -obj->r.y;
         }
     }
+}
+
+vect2 level::midpoint() const {
+    double min_x = std::numeric_limits<double>::infinity();
+    double min_y = std::numeric_limits<double>::infinity();
+    double max_x = -std::numeric_limits<double>::infinity();
+    double max_y = -std::numeric_limits<double>::infinity();
+
+    for (int i = 0; i < MAX_POLYGONS; i++) {
+        const polygon* poly = polygons[i];
+        if (!poly) {
+            continue;
+        }
+
+        for (int j = 0; j < poly->vertex_count; j++) {
+            double x = poly->vertices[j].x;
+            double y = -poly->vertices[j].y;
+
+            min_x = std::min(min_x, x);
+            max_x = std::max(max_x, x);
+            min_y = std::min(min_y, y);
+            max_y = std::max(max_y, y);
+        }
+    }
+
+    return vect2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5);
+}
+
+static inline uint32_t crc_double(double d) {
+    const uint64_t bits = std::bit_cast<std::uint64_t>(d);
+    const uint32_t lo = static_cast<std::uint32_t>(bits);
+    const uint32_t hi = static_cast<std::uint32_t>(bits >> 32);
+    return lo + hi;
+}
+
+int level::crc() const {
+    int crc = level_id;
+    int poly_count = 0;
+    for (int i = 0; i < MAX_POLYGONS; i++) {
+        const polygon* poly = polygons[i];
+        if (!poly) {
+            continue;
+        }
+
+        poly_count++;
+        crc ^= poly->vertex_count + poly->is_grass;
+        for (int j = 0; j < poly->vertex_count; j++) {
+            crc ^= crc_double(poly->vertices[j].x) + crc_double(poly->vertices[j].y);
+        }
+    }
+    crc ^= poly_count;
+
+    int obj_count = 0;
+    for (int i = 0; i < MAX_OBJECTS; i++) {
+        const object* obj = objects[i];
+        if (!obj) {
+            continue;
+        }
+
+        obj_count++;
+        double inv = (objects_flipped ? -1.0 : 1.0) * obj->r.y;
+        crc ^= crc_double(obj->r.x) + crc_double(inv);
+        crc ^= (int)obj->type + (int)obj->property + obj->animation;
+    }
+    crc ^= obj_count;
+
+    return crc;
 }

@@ -1,17 +1,16 @@
 #include "menu/options.h"
 #include "eol/settings.h"
-#include "game/level_load.h"
 #include "game/state.h"
 #include "main.h"
 #include "menu/ball.h"
 #include "menu/controls.h"
 #include "menu/dialog.h"
-#include "menu/main.h"
 #include "menu/nav.h"
 #include "menu/pic.h"
 #include "menu/player.h"
 #include "pic/surface.h"
 #include "platform/implementation.h"
+#include "renderer/canvas.h"
 #include "util/file_iter.h"
 #include <cmath>
 #include <cstring>
@@ -199,6 +198,8 @@ static void menu_cripples() {
         BOOL_OPTION("One Turn:", cripple_one_turn);
         BOOL_OPTION("No Volt:", cripple_no_volt);
         BOOL_OPTION("Drunk:", cripple_drunk);
+        BOOL_OPTION("One Wheel:", cripple_one_wheel);
+        BOOL_OPTION("Show One Wheel Status:", show_one_wheel_status);
 
         choice = nav.navigate();
 
@@ -246,7 +247,7 @@ void menu_options() {
         nav.add_row(
             "Video Detail:", State->high_quality ? "High" : "Low", NAV_FUNC() {
                 State->high_quality = !State->high_quality;
-                invalidate_level();
+                canvas::invalidate_canvases();
             });
 
         nav.add_row(
@@ -265,13 +266,7 @@ void menu_options() {
 
         nav.add_row("Cripples ...", NAV_FUNC() { menu_cripples(); });
 
-        nav.add_row(
-            "Pics In Background:", EolSettings->pictures_in_background_persisted() ? "Yes" : "No",
-            NAV_FUNC() {
-                EolSettings->persist_pictures_in_background(
-                    !EolSettings->pictures_in_background_persisted());
-                invalidate_level();
-            });
+        BOOL_OPTION("Pics In Background:", pictures_in_background);
 
         BOOL_OPTION("Override Ground:", default_ground);
         BOOL_OPTION("Override Sky:", default_sky);
@@ -445,6 +440,29 @@ void menu_options() {
         BOOL_OPTION("Show UPS:", show_ups);
 
         nav.add_row(
+            "FPS Limit:",
+            EolSettings->fps_limit_enabled_persisted()
+                ? std::to_string(EolSettings->fps_limit_persisted())
+                : std::string("Off"),
+            NAV_FUNC() {
+                static constexpr int steps[] = {60, 100, 144, 240, 500};
+                if (!EolSettings->fps_limit_enabled_persisted()) {
+                    EolSettings->persist_fps_limit_enabled(true);
+                    EolSettings->persist_fps_limit(steps[0]);
+                    return;
+                }
+                int cur = EolSettings->fps_limit_persisted();
+                for (size_t i = 0; i < std::size(steps); ++i) {
+                    if (steps[i] == cur && i + 1 < std::size(steps)) {
+                        EolSettings->persist_fps_limit(steps[i + 1]);
+                        return;
+                    }
+                }
+                EolSettings->persist_fps_limit_enabled(false);
+                EolSettings->persist_fps_limit(steps[0]);
+            });
+
+        nav.add_row(
             "Record Replay FPS:", std::to_string(EolSettings->recording_fps_persisted()),
             NAV_FUNC() {
                 int old_fps = EolSettings->recording_fps_persisted();
@@ -505,6 +523,7 @@ void menu_options() {
         BOOL_OPTION("Show others:", show_others);
         BOOL_OPTION("Show battle status:", show_battle_status);
         BOOL_OPTION("Show battle leader:", show_battle_leader);
+        BOOL_OPTION("Show speedometer:", show_speedometer);
 
         nav.add_row(
             "Table Alignment:",

@@ -7,11 +7,13 @@
 #include "level/level.h"
 #include "level/object.h"
 #include "log.h"
+#include "physics/pacer.h"
 #include "pic/abc8.h"
 #include "platform/implementation.h"
 #include "platform/scancode.h"
 #include "platform/text_input.h"
 #include "platform/utils.h"
+#include "renderer/canvas.h"
 #include "util/util.h"
 #include <charconv>
 #include <format>
@@ -158,6 +160,19 @@ void console::register_console_commands() {
     REGISTER_SETTINGS_BOOL(show_last_apple_time);
     REGISTER_SETTINGS_BOOL(show_gravity_arrows);
 
+    register_command("hq", [this](std::string_view text) {
+        if (text.empty()) {
+            State->high_quality = !State->high_quality;
+        } else if (auto val = parse_bool(text)) {
+            State->high_quality = (int)(*val);
+        } else {
+            add_line(std::format("invalid value: {}", text), LineType::System);
+            return;
+        }
+        canvas::invalidate_canvases();
+        StatusMessages->add(std::format("Video Detail: {}", State->high_quality ? "High" : "Low"));
+    });
+
     REGISTER_SETTINGS_BOOL(default_ground);
     register_alias("defground", "default_ground");
     REGISTER_SETTINGS_BOOL(default_sky);
@@ -167,6 +182,30 @@ void console::register_console_commands() {
     REGISTER_SETTINGS_INT(chat_lines);
 
     REGISTER_SETTINGS_BOOL(show_fps);
+
+    // eol-client !fps aggregate:
+    //   fps         -> toggle show_fps
+    //   fps on/off  -> queue limit on/off
+    //   fps <N>     -> queue numeric limit on
+    register_command("fps", [](std::string_view text) {
+        if (text.empty()) {
+            EolSettings->set_show_fps(!EolSettings->show_fps());
+            StatusMessages->add(EolSettings->show_fps() ? "FPS info shown" : "FPS info hidden");
+            return;
+        }
+        std::string s(text);
+        if (strcmpi(s.c_str(), "on") == 0) {
+            pacer::request_fps_limit(true, EolSettings->fps_limit());
+        } else if (strcmpi(s.c_str(), "off") == 0) {
+            pacer::request_fps_limit(false, EolSettings->fps_limit());
+        } else if (auto fps = parse_int(text); fps && *fps >= 30 && *fps <= 1000) {
+            pacer::request_fps_limit(true, *fps);
+        } else {
+            StatusMessages->add(
+                std::format("Invalid FPS: {}. Valid settings are 'on', 'off' or 30-1000", s));
+        }
+    });
+
     REGISTER_SETTINGS_BOOL(show_ups);
     register_alias("ups", "show_ups");
 
@@ -196,12 +235,21 @@ void console::register_console_commands() {
     REGISTER_SETTINGS_BOOL(cripple_drunk);
     register_alias("drunk", "cripple_drunk");
     register_alias("dr", "cripple_drunk");
+    REGISTER_SETTINGS_BOOL(cripple_one_wheel);
+    register_alias("onewheel", "cripple_one_wheel");
+    register_alias("ow", "cripple_one_wheel");
+    REGISTER_SETTINGS_BOOL(show_one_wheel_status);
+
     register_command("download", [](std::string_view text) { EolClient->download_level(text); });
     register_alias("dl", "download");
     register_command("download_battle",
                      [](std::string_view /*text*/) { EolClient->download_battle_level(); });
     register_alias("dlb", "download_battle");
     register_command("levinfo", print_level_info);
+
+    REGISTER_SETTINGS_BOOL(show_speedometer);
+    register_alias("speedometer", "show_speedometer");
+    register_alias("speed", "show_speedometer");
 }
 
 void console::add_line(std::string text, LineType type) {
@@ -251,6 +299,11 @@ void console::deactivate_input() {
     if (clear_label_on_submit) {
         clear_label_mode();
     }
+}
+
+void console::clear_input() {
+    input_buffer.clear();
+    cursor_pos = 0;
 }
 
 void console::toggle_active() {
@@ -333,7 +386,7 @@ void console::handle_input() {
         return;
     }
 
-    if (was_key_just_pressed(DIK_V) && is_shortcut_modifier_down()) {
+    if (was_key_just_pressed(DIK_V) && is_paste_modifier_down()) {
         std::string clipboard = get_clipboard_text();
         if (!clipboard.empty()) {
             paste_text(clipboard);

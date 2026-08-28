@@ -25,7 +25,6 @@ class level {
 
   public:
     int level_id;
-    bool lgr_not_found;
     bool topology_errors;
     polygon* polygons[MAX_POLYGONS];
     object* objects[MAX_OBJECTS];
@@ -44,11 +43,10 @@ class level {
     level(const char* filename);
     ~level();
 
-    // Delete sprites that don't exist in current lgr, and make sure default ground / sky textures
-    // are different.
-    //
-    // Returns true if any sprites were deleted.
-    bool discard_missing_lgr_assets(lgrfile* lgr);
+    // For the internal editor, set the wireframe sizes for sprites based on the current lgr
+    // Optionally displays are warning if some sprites are not found in the lgr file.
+    void load_sprite_wireframes(lgrfile* lgr, bool warn_if_missing);
+
     // Get closest vertex to (x, y) in the editor, if the distance is less than 10 pixels. A polygon
     // can `skip` can be passed to skip that polygon.
     polygon* get_closest_vertex(double x, double y, int* vertex_index, double* distance = nullptr,
@@ -81,6 +79,9 @@ class level {
     // Invert the y of all objects (needs to be inverted for in-game, and uninverted in editor)
     void flip_objects();
     void unflip_objects();
+
+    vect2 midpoint() const;
+    int crc() const;
 };
 
 extern vect2 BikeStartOffset;

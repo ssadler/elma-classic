@@ -16,17 +16,17 @@ on:
 
 jobs:
   clang-format:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install clang-format 19
+      - name: Install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format-19 libgl1-mesa-dev
-          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-19 100
-          sudo update-alternatives --set clang-format /usr/bin/clang-format-19
+          sudo apt-get install -y clang-format-21 libgl1-mesa-dev
+          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 100
+          sudo update-alternatives --set clang-format /usr/bin/clang-format-21
           clang-format --version
 
       - name: Set up Python
@@ -44,15 +44,15 @@ jobs:
         run: ninja -C build clang-format-check
 
   clang-tidy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install clang-tidy 19
+      - name: Install clang-tidy
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-tidy-19 libgl1-mesa-dev
+          sudo apt-get install -y clang-tidy-21 libgl1-mesa-dev
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -99,9 +99,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-          - os: windows-latest
-          - os: macos-latest
+          - os: ubuntu-26.04
+          - os: windows-2025
+          - os: macos-26
           - os: macos-15-intel
             arch: x86_64
 

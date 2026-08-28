@@ -11,6 +11,7 @@
 #include "platform/utils.h"
 #include "util/util.h"
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -135,9 +136,21 @@ void eol::process(const new_kuski& nk) {
 }
 
 void eol::process(const kuski_logout& kl) {
+    if (pm_kuski_id && (*pm_kuski_id == kl.id || *pm_kuski_id == kl.id2)) {
+        StatusMessages->add(std::format("{} logged out, cancelling PM", lookup_nick(*pm_kuski_id)));
+        pm_kuski_id.reset();
+        if (Console->is_input_active() && !Console->in_command_prompt()) {
+            Console->deactivate_input();
+        }
+    }
+
     for (kuski& k : kuskis_) {
         if (k.id == kl.id || k.id == kl.id2) {
             k.is_online = false;
+            k.clear_spy_data();
+            if (spy_kuski_id && *spy_kuski_id == k.id) {
+                spy_kuski_id.reset();
+            }
         }
     }
     sync_players_online_table();
@@ -188,9 +201,14 @@ void eol::sync_players_online_table() {
     }
 }
 
-std::string_view eol::lookup_nick(unsigned int kuski_id) const {
+const char* eol::find_nick(unsigned int kuski_id) const {
     auto match = std::ranges::find(all_kuskis(), kuski_id, &kuski::id);
-    return match != all_kuskis().end() ? std::string_view{match->nick} : "?";
+    return match != all_kuskis().end() ? match->nick : nullptr;
+}
+
+std::string_view eol::lookup_nick(unsigned int kuski_id) const {
+    const char* nick = find_nick(kuski_id);
+    return nick ? nick : "?";
 }
 
 void eol::process(const finished_time& ft) {
@@ -220,7 +238,7 @@ void eol::sync_finished_times_table() {
         char time_buf[32] = "";
         util::text::centiseconds_to_string(int(ft.time), time_buf, true, true);
         finished_times_table.add_row(
-            {std::string(lookup_nick(ft.kuski_id)), time_buf, format_level(ft.level)});
+            {std::string(lookup_nick(ft.kuski_id)), format_level(ft.level), time_buf});
     }
 }
 
@@ -283,7 +301,7 @@ void eol::process(const team_message& msg) {
 void eol::process(const spy_data& sd) {
     kuski* k = get_kuski(kuskis_, sd.kuski_id);
     if (k) {
-        k->add_spy_data(sd);
+        k->add_spy_data(sd, min_spy_frames);
     }
 }
 
@@ -304,12 +322,14 @@ void eol::process(const spy_apple_data& sd) {
     }
 }
 
-void eol::process(const clear_spy_data& sd) {
+void eol::process(const stop_spy_data& sd) {
     kuski* k = get_kuski(kuskis_, sd.kuski_id);
     if (k) {
-        k->clear_spy_data();
+        k->stop_spy_data();
     }
 }
+
+void eol::process(const server_config& sc) { min_spy_frames = sc.min_spy_frames; }
 
 void eol::process(const level_download& ld) {
     const char* level_name = (const char*)ld.level;
@@ -386,19 +406,20 @@ void eol::record_apple_taken(int object_index, int num_apples) {
     });
 }
 
-void eol::exit_level(const char* level_name, double time, int apple_count, int level_apple_count,
-                     bool dead) {
+void eol::exit_level(const driver& d, double time, int level_apple_count) {
     for (kuski& k : kuskis_) {
         k.clear_spy_data();
         k.clear_apple_data();
     }
 
     spy_kuski_id.reset();
-    struct exit_level fl{.name = level_name,
+    int apple_count = d.mot->apple_count - d.mot->apple_bug_count;
+    struct exit_level fl{.name = d.rec->level_filename,
                          .time = time,
                          .apple_count = apple_count,
                          .level_apple_count = level_apple_count,
-                         .dead = dead};
+                         .dead = d.dead,
+                         .esc = d.finish_time == 0 && !d.dead};
     proto.send(fl);
 }
 
@@ -414,15 +435,28 @@ void eol::send_chat(std::string_view message) {
         if (split == std::string_view::npos || split < MAX_LEN - SPLIT_MARGIN) {
             split = MAX_LEN;
         }
-        struct send_chat sc{.kuski_id = id, .message = message.substr(0, split)};
-        proto.send(sc);
+        send_chat_line(message.substr(0, split));
         message.remove_prefix(split);
         if (!message.empty() && message.front() == ' ') {
             message.remove_prefix(1);
         }
     }
-    struct send_chat sc{.kuski_id = id, .message = message};
-    proto.send(sc);
+    send_chat_line(message);
+}
+
+void eol::send_chat_line(std::string_view message) {
+    if (pm_kuski_id) {
+        proto.send(send_pm{.from_kuski_id = id,
+                           .to_kuski_id = *pm_kuski_id,
+                           .is_team_chat = false,
+                           .message = message});
+    } else if (is_team_chat) {
+        proto.send(send_pm{
+            .from_kuski_id = id, .to_kuski_id = 0, .is_team_chat = true, .message = message});
+    } else {
+        struct send_chat sc{.kuski_id = id, .message = message};
+        proto.send(sc);
+    }
 }
 
 void eol::send_kuski_data(double time, driver& d) {
@@ -510,14 +544,67 @@ void eol::spy_next_kuski() { set_spy_kuski(spy_kuski_id, kuskis()); }
 
 void eol::spy_prev_kuski() { set_spy_kuski(spy_kuski_id, std::views::reverse(kuskis())); }
 
-void kuski::clear_apple_data() {
-    for (bool& taken : apples_taken) {
-        taken = false;
+void eol::toggle_team_chat() {
+    is_team_chat = !is_team_chat;
+    StatusMessages->add(is_team_chat ? std::format("Team chat on (press {} to chat)",
+                                                   dik_to_string(State->key_chat))
+                                     : "Team chat off");
+}
+
+template <typename Range>
+static void cycle_pm_kuski(std::optional<unsigned int>& pm_kuski_id, Range&& range) {
+    bool found_current = !pm_kuski_id;
+
+    for (const kuski& k : range) {
+        if (pm_kuski_id && *pm_kuski_id == k.id) {
+            found_current = true;
+            continue;
+        }
+
+        if (found_current) {
+            pm_kuski_id = k.id;
+            return;
+        }
+    }
+
+    // wraps through the "no target" slot, back to public/team chat
+    pm_kuski_id.reset();
+}
+
+void eol::pm_next_kuski() { cycle_pm_kuski(pm_kuski_id, kuskis()); }
+
+void eol::pm_prev_kuski() { cycle_pm_kuski(pm_kuski_id, std::views::reverse(kuskis())); }
+
+void eol::pm_jump_to_char(char c) {
+    // nearest nick at or after the character, else the alphabetically last one
+    const kuski* last = nullptr;
+    for (const kuski& k : kuskis()) {
+        if (tolower((unsigned char)k.nick[0]) >= tolower((unsigned char)c)) {
+            pm_kuski_id = k.id;
+            return;
+        }
+        last = &k;
+    }
+    if (last) {
+        pm_kuski_id = last->id;
     }
 }
 
-const struct spy_data* kuski::spy_data() const { return data ? &*data : nullptr; }
+void eol::clear_pm_kuski() { pm_kuski_id.reset(); }
 
-void kuski::add_spy_data(const struct spy_data& sd) { data = sd; }
+std::string eol::chat_prompt() const {
+    if (pm_kuski_id) {
+        return std::format("-><{}> ", lookup_nick(*pm_kuski_id));
+    }
+    if (is_team_chat) {
+        return "[Team] ";
+    }
+    return "";
+}
 
-void kuski::clear_spy_data() { data.reset(); }
+void eol::update_spy_kuskis() {
+    const uint32_t now = static_cast<uint32_t>(get_milliseconds());
+    for (kuski& k : kuskis_) {
+        k.update_spy_data(now, min_spy_frames);
+    }
+}

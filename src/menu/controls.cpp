@@ -5,8 +5,6 @@
 #include "menu/nav.h"
 #include "platform/implementation.h"
 #include "platform/scancode.h"
-#include "platform/text_input.h"
-#include <cstring>
 #include <format>
 #include <ranges>
 #include <vector>
@@ -129,6 +127,7 @@ static void load_universal_controls(menu_nav* nav) {
     load_control(nav, UniversalKeys, "Dec. Screen Size", &State->key_decrease_screen_size);
     load_control(nav, UniversalKeys, "Make a Screenshot", &State->key_screenshot);
     load_control(nav, UniversalKeys, "Escape Alias", &State->key_escape_alias);
+    load_control(nav, UniversalKeys, "Toggle Video Detail", &State->key_high_quality);
     load_control(nav, UniversalKeys, "Toggle Ground/Sky", &State->key_default_ground_sky);
 }
 
@@ -177,10 +176,17 @@ static void load_function_controls(menu_nav* nav) {
     load_control(nav, FunctionKeys, "Clear Finished Times", &State->key_clear_finished_times);
     load_control(nav, FunctionKeys, "Chat", &State->key_chat);
     load_control(nav, FunctionKeys, "Show Chat", &State->key_show_chat);
+    load_control(nav, FunctionKeys, "Team Chat", &State->key_team_chat);
+    load_control(nav, FunctionKeys, "PM Next Kuski", &State->key_pm_next_kuski);
+    load_control(nav, FunctionKeys, "PM Prev Kuski", &State->key_pm_prev_kuski);
+    load_control(nav, FunctionKeys, "PM Clear", &State->key_pm_clear_kuski);
     load_control(nav, FunctionKeys, "Hide Battle Status", &State->key_battle_status);
     load_control(nav, FunctionKeys, "Hide Battle Leader", &State->key_battle_leader);
+    load_control(nav, FunctionKeys, "Show Speedometer", &State->key_speedometer);
     load_control(nav, FunctionKeys, "Reconnect", &State->key_reconnect);
     load_control(nav, FunctionKeys, "Disconnect", &State->key_disconnect);
+    load_control(nav, FunctionKeys, "Show Last Apple Time", &State->key_toggle_last_apple_time);
+    load_control(nav, FunctionKeys, "Show One-Wheel Status", &State->key_toggle_one_wheel_status);
 }
 
 // Menu to change controls for one player

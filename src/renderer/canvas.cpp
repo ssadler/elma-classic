@@ -25,6 +25,8 @@ canvas* CanvasBack = nullptr;
 canvas* CanvasFront = nullptr;
 canvas* CanvasMinimap = nullptr;
 
+static bool CanvasesInvalidated = false;
+
 constexpr int RIGHTMOST_CHUNK_WIDTH = 1000000;
 
 constexpr int DISTANCE_DEFAULT = 1000000;
@@ -432,6 +434,7 @@ void canvas::linked_list_to_array() {
 }
 
 void canvas::calculate_object_positions() const {
+    const double y_sign = Level->objects_flipped ? 1 : -1;
     const double offset = ANIM_WIDTH / 2.0 * EolSettings->zoom();
     for (int i = 0; i < MAX_OBJECTS; i++) {
         object* obj = Level->objects[i];
@@ -440,10 +443,10 @@ void canvas::calculate_object_positions() const {
         }
         if (is_minimap) {
             obj->minimap_canvas_x = (int)((obj->r.x - origin.x) * MetersToMinimapPixels);
-            obj->minimap_canvas_y = (int)((-obj->r.y - origin.y) * MetersToMinimapPixels);
+            obj->minimap_canvas_y = (int)((y_sign * obj->r.y - origin.y) * MetersToMinimapPixels);
         } else {
             obj->canvas_x = (int)((obj->r.x - origin.x) * MetersToPixels - offset);
-            obj->canvas_y = (int)((-obj->r.y - origin.y) * MetersToPixels - offset);
+            obj->canvas_y = (int)((y_sign * obj->r.y - origin.y) * MetersToPixels - offset);
         }
     }
 }
@@ -734,11 +737,11 @@ void canvas::draw_sprites(Clipping clipping) {
             }
             int texture_index = Lgr->get_texture_index(spr->texture_name);
             if (texture_index < 0) {
-                internal_error("draw_sprites texture_index < 0");
+                continue;
             }
             int mask_index = Lgr->get_mask_index(spr->mask_name);
             if (mask_index < 0) {
-                internal_error("draw_sprites mask_index < 0");
+                continue;
             }
             draw_texture(spr, texture_index, mask_index, clipping);
             continue;
@@ -750,7 +753,7 @@ void canvas::draw_sprites(Clipping clipping) {
         // Picture
         int picture_index = Lgr->get_picture_index(spr->picture_name);
         if (picture_index < 0) {
-            internal_error("draw_sprites picture_index < 0");
+            continue;
         }
         picture* pict = &Lgr->pictures[picture_index];
 
@@ -1641,6 +1644,8 @@ void canvas::create_canvases() {
     CanvasBack->calculate_object_positions();
     CanvasMinimap->calculate_object_positions();
 
+    CanvasesInvalidated = false;
+
     END_TIME(canvas_timer, std::format("Canvases"));
 
 }
@@ -1686,12 +1691,18 @@ bool canvas::bike_out_of_bounds(vect2 pos) {
     return relative_pos.x < OUT_OF_BOUNDS_LEFT || relative_pos.y < OUT_OF_BOUNDS_BOTTOM;
 }
 
+void canvas::invalidate_canvases() { CanvasesInvalidated = true; }
+
+void canvas::recreate_canvases_if_needed() {
+    if (CanvasesInvalidated) {
+        create_canvases();
+    }
+}
 
 std::vector<canvas::canvas_export_span> canvas::export_spans() {
 
     std::vector<canvas_export_span> spans;
     auto n_rows = rows.size();
-    printf("n rows %li\n", n_rows);
 
     auto get_pic_ptr_offset = [](long ptr, pic8* pic) -> std::array<int, 2> {
                 int w = pic->get_row(1) - pic->get_row(0);
@@ -1706,10 +1717,7 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
     auto add_span = [&](int x, int y, canvas_chunk* span) {
 
         if (span->pixels == canvas_pixels::default_foreground()) {
-                //printf("fore  %i:%i   %i\n", x, y, span->width);
-            //spans.emplace_back(x, y, span->width, 0, 0, -1);
         } else if (span->pixels == canvas_pixels::default_background()) {
-                //printf("back  %i:%i   %i\n", x, y, span->width);
             spans.emplace_back(x, y, span->width, 0, 0, -2);
         } else if (span->pixels == canvas_pixels::transparent()) {
             // noop
@@ -1755,45 +1763,9 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
             }
 
 
-                //printf("tex id: %i\n", tex_id);
-
-
-
-            //for (int i=0; i<Lgr->grass_pics->elements.size(); i++) {
-            //    auto& t = Lgr->grass_pics->elements[i];
-
-            //    auto [off, w] = get_pic_ptr_offset(p, t.pic.get());
-
-            //    if (off != -1) { // off >= 0 && off < w * h) {
-            //        auto tex_id = i + 0x100000;
-            //        spans.emplace_back(x, y, span->width, off % w, off / w, tex_id);
-            //        return;
-            //    }
-            //}
-
-            //for (int i=0; i<Lgr->texture_count; i++) {
-            //    auto& t = Lgr->textures[i];
-            //    auto [off, w] = get_pic_ptr_offset(p, t.pic);
-            //    if (off != -1) {
-            //        spans.emplace_back(x, y, span->width, off % w, off / w, i);
-            //        return;
-            //    }
-            //}
-
-            //for (int i=0; i<Lgr->picture_count; i++) {
-            //    auto& t = Lgr->pictures[i];
-            //    long off = p - (long) t.data;
-            //    if (off >= 0 && off < t.data_len) {
-            //        spans.emplace_back(x, y, span->width, off, -1, i + 0x10000);
-            //        return;
-            //    }
-            //}
-
             auto [off, w] = get_pic_ptr_offset(p, Lgr->background);
             if (off != -1) {
-                printf("its background\n");
                 return;
-
             }
 
             printf("tex not found: tex id %i\n", tex_id);
@@ -1809,7 +1781,7 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
 
         while (true) {
 
-            if (span->width < 10000 || true) {
+            if (span->width < 10000) {
                 add_span(x, y, span);
             }
 
@@ -1826,6 +1798,5 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
         }
     }
 
-    printf("canvas spans %li\n", spans.size());
     return spans;
 }

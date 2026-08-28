@@ -22,10 +22,12 @@ class PicRenderer : public GameRenderer {
 
     pic8* pic_main;
     pic8* pic_view = nullptr;
+    const kuski* spy_kuski = nullptr;
 
     using GameRenderer::GameRenderer;
 
     void start_frame() override {
+        spy_kuski = EolClient->spy_kuski();
         pic_main = lock_backbuffer_pic(true);
     }
     void end_frame() override {
@@ -186,7 +188,14 @@ class PicRenderer : public GameRenderer {
 
     void render_timers(const char* best_time_text, double flag_tag_time,
                        int dest_width, int dest_height) override {
-        draw_timers(best_time_text, flag_tag_time, time, pic_view, dest_width, dest_height);
+        double shown_time = time;
+        if (Single && EolClient->is_spying()) {
+            shown_time =
+                spy_kuski && !EolClient->battle_hides_times()
+                    ? spy_kuski->spy_data()->time * (STOPWATCH_MULTIPLIER * STOPWATCH_TO_PHYS_TIME)
+                    : 0.0;
+        }
+        draw_timers(best_time_text, flag_tag_time, shown_time, pic_view, dest_width, dest_height);
     };
 
     pic8* get_backbuffer_pic() override {

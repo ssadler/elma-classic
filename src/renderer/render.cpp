@@ -11,6 +11,7 @@
 #include "main.h"
 #include "physics/flagtag.h"
 #include "physics/init.h"
+#include "physics/pacer.h"
 #include "pic/abc8.h"
 #include "pic/anim.h"
 #include "pic/lgr.h"
@@ -33,9 +34,9 @@
 
 static bool GameBackgroundRender = false;
 
-abc8* SmallFont = nullptr;
-abc8* MediumFont = nullptr;
-abc8* LargeFont = nullptr;
+static abc8* SmallFont = nullptr;
+static abc8* MediumFont = nullptr;
+static abc8* LargeFont = nullptr;
 
 // Percentage of the screen used to render the game (QFRAME drawn on the edge)
 static double VisibleFraction = 1.0;
@@ -64,9 +65,7 @@ void decrease_view_size() {
         return;
     }
     VisibleFraction /= VISIBLE_FRACTION_SCALING_FACTOR;
-    if (VisibleFraction < 0.7) {
-        VisibleFraction = 0.7;
-    }
+    VisibleFraction = std::max(VisibleFraction, 0.7);
     reset_game_background();
 }
 
@@ -232,26 +231,29 @@ static std::vector<info_panel_row> get_info_rows(
     // rows are rendered in the order they were added (last added on top)
     std::vector<info_panel_row> info_rows;
 
-    if (bottom_player && loop != GameLoop::Render) {
-        // FPS
-        if (EolSettings->show_fps()) {
-            const double fps_value = fps::fps();
-            std::string fps_text = "";
-            if (fps_value != 0.0) {
-                fps_text = std::format("{:.0f}", fps_value);
+    if (loop == GameLoop::Game) {
+        if (current_camera.mode != CameraMode::MapViewer) {
+            if (EolSettings->show_speedometer()) {
+                info_rows.push_back({"max speed", driv.stats.format_max_speed()});
+                info_rows.push_back({"speed", driv.stats.format_speed()});
             }
-            info_rows.push_back({"FPS", std::move(fps_text)});
+
+            if (EolSettings->show_one_wheel_status()) {
+                info_rows.push_back({"one wheel", driv.mot->one_wheel_failed ? "no" : "yes"});
+            }
         }
 
-        // UPS
-        if (EolSettings->show_ups() && loop == GameLoop::Game &&
-            current_camera.mode == CameraMode::Normal) {
-            const double ups_value = fps::ups();
-            std::string ups_text = "";
-            if (ups_value != 0.0) {
-                ups_text = std::format("{:.0f}", ups_value);
+
+        if (bottom_player) {
+            // FPS
+            if (EolSettings->show_fps()) {
+                info_rows.push_back({"FPS", fps::format_fps() + pacer::format_fps_limit()});
             }
-            info_rows.push_back({"UPS", std::move(ups_text)});
+
+            // UPS
+            if (EolSettings->show_ups() && current_camera.mode == CameraMode::Normal) {
+                info_rows.push_back({"UPS", fps::format_ups()});
+            }
         }
     }
 
@@ -490,8 +492,9 @@ void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect
 
 
 void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
+    reload_graphic_assets();
 
-    fps::count_fps();
+    fps::update();
 
     GameRenderer* renderer = is_opengl_render() ?
         createOpenGLRenderer(time, driv1, driv2, current_camera, loop) :

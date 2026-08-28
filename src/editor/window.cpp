@@ -3,6 +3,7 @@
 #include "editor/dialog.h"
 #include "editor/editor.h"
 #include "editor/screen_pic.h"
+#include "editor/topology.h"
 #include "game/level_load.h"
 #include "level/level.h"
 #include "level/polygon.h"
@@ -1174,19 +1175,17 @@ void editor_window_sprite_properties(sprite* spr) {
             Clipping default_clipping = Clipping::Unknown;
             if (spr->picture_name[0]) {
                 int index = Lgr->get_picture_index(spr->picture_name);
-                if (index < 0) {
-                    internal_error("editor_window_sprite_properties index < 0");
+                if (index >= 0) {
+                    default_distance = Lgr->pictures[index].default_distance;
+                    default_clipping = Lgr->pictures[index].default_clipping;
                 }
-                default_distance = Lgr->pictures[index].default_distance;
-                default_clipping = Lgr->pictures[index].default_clipping;
             }
             if (spr->texture_name[0]) {
                 int index = Lgr->get_texture_index(spr->texture_name);
-                if (index < 0) {
-                    internal_error("editor_window_sprite_properties index < 0");
+                if (index >= 0) {
+                    default_distance = Lgr->textures[index].default_distance;
+                    default_clipping = Lgr->textures[index].default_clipping;
                 }
-                default_distance = Lgr->textures[index].default_distance;
-                default_clipping = Lgr->textures[index].default_clipping;
             }
 
             char tmp[10];
@@ -1212,7 +1211,7 @@ void editor_window_sprite_properties(sprite* spr) {
 
             render_box(screen.pic(), box_clipping, EditorPaletteId::WINDOW_INPUT,
                        EditorPaletteId::WINDOW_BORDER);
-            strcpy(tmp, clipping_to_string(default_clipping));
+            strcpy(tmp, clipping_to_string(clipping));
             draw_textbox_centered(screen.pic(), box_clipping, EditorPaletteId::WINDOW_INPUT, tmp);
             EditorBlackFont->write_centered(screen.pic(), x1 + 198, box_clipping.y2 + 14,
                                             "(U, S, G)");
@@ -1543,6 +1542,10 @@ void editor_window_level_properties() {
     while (true) {
         handle_events();
         if (was_key_just_pressed(DIK_ESCAPE) || clicked_box(box_cancel)) {
+            if (strcmpi(lgr_name, Level->lgr_name) != 0) {
+                // Revert lgr back to original
+                lgrfile::load_lgr_file(Level->lgr_name);
+            }
             return;
         }
         if (was_key_just_pressed(DIK_RETURN) || clicked_box(box_ok)) {
@@ -1556,13 +1559,13 @@ void editor_window_level_properties() {
             strcpy(Level->level_name, level_name);
 
             if (strcmpi(lgr_name, Level->lgr_name) != 0) {
+                // Apply new loaded LGR
                 LevelChanged = true;
                 strcpy(Level->lgr_name, lgr_name);
-                lgrfile::load_lgr_file(Level->lgr_name);
-                if (Level->discard_missing_lgr_assets(Lgr)) {
-                    dialog_warn_lgr_assets_deleted();
-                }
+                Level->load_sprite_wireframes(Lgr, true);
             }
+
+            check_textures();
             return;
         }
         if (clicked_box(box_foreground)) {
@@ -1588,6 +1591,7 @@ void editor_window_level_properties() {
             rerender = true;
         } else if (clicked_box(box_lgr)) {
             editor_window_choose_lgr(screen.pic(), lgr_name);
+            lgrfile::load_lgr_file(lgr_name);
             rerender = true;
         }
         if (rerender) {

@@ -13,18 +13,21 @@
 #include "physics/flagtag.h"
 #include "physics/forces.h"
 #include "physics/init.h"
+#include "physics/pacer.h"
 #include "pic/lgr.h"
 #include "platform/implementation.h"
 #include "platform/scancode.h"
 #include "platform/sdl/keyboard.h"
+#include "renderer/canvas.h"
 #include "renderer/render.h"
 #include "renderer/timer.h"
 #include "sound/engine.h"
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <filesystem>
+#include <format>
 #include <optional>
+#include <utility>
 
 int Single = 1;
 int FlagTag = 0;
@@ -52,7 +55,74 @@ static BattleAttributes::Kind active_cripples() {
     cripples |= EolSettings->cripple_no_throttle() ? NoThrottle : 0;
     cripples |= EolSettings->cripple_always_throttle() ? AlwaysThrottle : 0;
     cripples |= EolSettings->cripple_drunk() ? Drunk : 0;
+    cripples |= EolSettings->cripple_one_wheel() ? OneWheel : 0;
     return static_cast<Kind>(cripples);
+}
+
+// Show the chat prompt (PM target > team chat > public) as the input label.
+static void push_chat_prompt() {
+    if (Console->in_chat_mode()) {
+        Console->label_mode(EolClient->chat_prompt(), "", true, true);
+    }
+}
+
+static void handle_pm_target_keys() {
+    if (!Console->in_chat_mode() || Console->in_command_prompt()) {
+        return;
+    }
+
+    bool target_changed = false;
+    if (was_key_just_pressed(State->key_pm_next_kuski)) {
+        EolClient->pm_next_kuski();
+        target_changed = true;
+    }
+
+    if (was_key_just_pressed(State->key_pm_prev_kuski)) {
+        EolClient->pm_prev_kuski();
+        target_changed = true;
+    }
+
+    if (was_key_just_pressed(State->key_pm_clear_kuski)) {
+        EolClient->clear_pm_kuski();
+        target_changed = true;
+    }
+
+    static constexpr std::pair<DikScancode, char> JUMP_KEYS[] = {
+        {DIK_0, '0'}, {DIK_1, '1'}, {DIK_2, '2'}, {DIK_3, '3'}, {DIK_4, '4'}, {DIK_5, '5'},
+        {DIK_6, '6'}, {DIK_7, '7'}, {DIK_8, '8'}, {DIK_9, '9'}, {DIK_A, 'a'}, {DIK_B, 'b'},
+        {DIK_C, 'c'}, {DIK_D, 'd'}, {DIK_E, 'e'}, {DIK_F, 'f'}, {DIK_G, 'g'}, {DIK_H, 'h'},
+        {DIK_I, 'i'}, {DIK_J, 'j'}, {DIK_K, 'k'}, {DIK_L, 'l'}, {DIK_M, 'm'}, {DIK_N, 'n'},
+        {DIK_O, 'o'}, {DIK_P, 'p'}, {DIK_Q, 'q'}, {DIK_R, 'r'}, {DIK_S, 's'}, {DIK_T, 't'},
+        {DIK_U, 'u'}, {DIK_V, 'v'}, {DIK_W, 'w'}, {DIK_X, 'x'}, {DIK_Y, 'y'}, {DIK_Z, 'z'},
+    };
+    for (auto [key, c] : JUMP_KEYS) {
+        // Ctrl+Shift+V pastes into the console; don't also treat it as a jump.
+        if (key == DIK_V && is_paste_modifier_down()) {
+            continue;
+        }
+        if (was_key_just_pressed(combo_scancode{DIK_LCONTROL, key})) {
+            EolClient->pm_jump_to_char(c);
+            target_changed = true;
+        }
+    }
+
+    if (target_changed) {
+        push_chat_prompt();
+    }
+}
+
+static void toggle_download_prompt() {
+    if (Console->is_input_active() && Console->in_command_prompt()) {
+        Console->deactivate_input();
+        return;
+    }
+
+    Console->label_mode("[Download] ", "!download ", true, false);
+    if (Console->is_input_active()) {
+        Console->clear_input();
+    } else {
+        Console->toggle_active();
+    }
 }
 
 // Returns whether console was active at the beginning of this frame,
@@ -63,9 +133,15 @@ static bool handle_console_input() {
         if (Console->is_input_active() ||
             EolSettings->chat_visibility() != ChatVisibility::Hidden) {
             Console->toggle_active();
+            push_chat_prompt();
         }
     } else if (Console->is_input_active()) {
-        Console->handle_input();
+        if (was_key_just_pressed(State->key_download_level)) {
+            toggle_download_prompt();
+        } else {
+            handle_pm_target_keys();
+            Console->handle_input();
+        }
     }
     return was_active;
 }
@@ -82,6 +158,12 @@ template <typename Scancode> static bool was_game_key_just_pressed(Scancode code
         return false;
     }
     return was_key_just_pressed(code);
+}
+
+static void latch_one_frame_brake(driver& driv) {
+    if (was_game_key_just_pressed(driv.keys->one_frame_brake)) {
+        driv.one_frame_brake_pending = true;
+    }
 }
 
 static void update_freecam(double dt, camera& current_camera) {
@@ -163,7 +245,7 @@ static void physics_subframe(driver& driv, double time, double dt) {
     // Adjust key inputs to only allow valid inputs, accounting for volt delay and cripples
     bool is_gas_down = is_game_key_down(keys->gas);
     bool is_brake_down = is_game_key_down(keys->brake) || is_game_key_down(keys->brake_alias) ||
-                         was_game_key_just_pressed(keys->one_frame_brake);
+                         driv.one_frame_brake_pending;
     bool is_right_volt_down = is_game_key_down(keys->right_volt);
     bool is_left_volt_down = is_game_key_down(keys->left_volt);
 
@@ -263,6 +345,10 @@ static void physics_subframe(driver& driv, double time, double dt) {
             start_wav(wav_id, volume);
         }
         rec->store_event(time, wav_id, volume, object_id);
+    }
+
+    if (cripples & OneWheel && driv.mot->one_wheel_failed) {
+        driv.dead = true;
     }
 }
 
@@ -401,8 +487,7 @@ static void handle_eol_inputs() {
         EolClient->download_battle_level();
     }
     if (was_game_key_just_pressed(State->key_download_level)) {
-        Console->label_mode("[Download] ", "!download ", true, false);
-        Console->toggle_active();
+        toggle_download_prompt();
     }
 
     if (was_game_key_just_pressed(State->key_players_online)) {
@@ -429,9 +514,17 @@ static void handle_eol_inputs() {
     if (was_game_key_just_pressed(State->key_battle_leader)) {
         EolClient->toggle_show_battle_leader();
     }
+    if (was_game_key_just_pressed(State->key_speedometer)) {
+        EolSettings->set_show_speedometer(!EolSettings->show_speedometer());
+        StatusMessages->add(EolSettings->show_speedometer() ? "speedometer shown"
+                                                            : "speedometer hidden");
+    }
 
     if (was_game_key_just_pressed(State->key_show_chat)) {
         Console->cycle_show_chat();
+    }
+    if (was_game_key_just_pressed(State->key_team_chat)) {
+        EolClient->toggle_team_chat();
     }
 
     if (was_game_key_just_pressed(State->key_reconnect)) {
@@ -444,6 +537,12 @@ static void handle_eol_inputs() {
         EolSettings->set_play_offline(true);
         EolClient->disconnect();
         StatusMessages->add("disconnected from the server");
+    }
+
+    if (was_game_key_just_pressed(State->key_high_quality)) {
+        State->high_quality = !State->high_quality;
+        canvas::invalidate_canvases();
+        StatusMessages->add(std::format("Video Detail: {}", State->high_quality ? "High" : "Low"));
     }
 
     if (was_game_key_just_pressed(State->key_default_ground_sky)) {
@@ -469,10 +568,26 @@ static void handle_eol_inputs() {
             StatusMessages->add("overriding background texture with \"sky\"");
         }
     }
+
+    if (was_game_key_just_pressed(State->key_toggle_one_wheel_status)) {
+        EolSettings->set_show_one_wheel_status(!EolSettings->show_one_wheel_status());
+        StatusMessages->add(EolSettings->show_one_wheel_status() ? "one-wheel status shown"
+                                                                 : "one-wheel status hidden");
+    }
+
+    if (was_game_key_just_pressed(State->key_toggle_last_apple_time)) {
+        EolSettings->set_show_last_apple_time(!EolSettings->show_last_apple_time());
+        StatusMessages->add(EolSettings->show_last_apple_time() ? "last apple time shown"
+                                                                : "last apple time hidden");
+    }
 }
+
+void reload_graphic_assets() { canvas::recreate_canvases_if_needed(); }
 
 // Common setup function
 static void setup_gameloop(const char* filename) {
+    reload_graphic_assets();
+
     load_best_time(filename, Single);
 
     init_physics_data();
@@ -539,7 +654,7 @@ int game_loop(const char* filename, CameraMode camera_mode) {
         BattleRunCripples = EolClient->battle_cripples();
     }
 
-    stopwatch_reset();
+    pacer::reset();
 
     driver driv1(Motor1, Rec1, &State->keys1, &HudGame1);
     driver driv2(Motor2, Rec2, &State->keys2, &HudGame2);
@@ -571,25 +686,25 @@ int game_loop(const char* filename, CameraMode camera_mode) {
         const bool frozen = time == 0.0 && current_camera.mode != CameraMode::MapViewer &&
                             EolClient->bike_frozen_by_countdown();
         if (frozen) {
-            stopwatch_reset();
+            pacer::reset();
         }
-
-        // Get timestep
-        double target_time = stopwatch() * 0.0024;
-        target_time = std::max(0.000001, target_time);
 
         handle_events();
 
         bool console_was_active = handle_console_input();
 
         if (!frozen) {
-            while (time <= target_time - 0.000001) {
-                // Cap slowest frame to 0.0055 (approximately 12.6 milliseconds or 79.4 fps)
-                double dt = 0.0055;
-                if (time + dt > target_time) {
-                    dt = target_time - time;
-                }
+            pacer::new_frame();
 
+            latch_one_frame_brake(driv1);
+            if (!Single) {
+                latch_one_frame_brake(driv2);
+            }
+
+            bool ran_subframes = false;
+            double dt = 0.0;
+            while (pacer::subframe(&dt)) {
+                ran_subframes = true;
                 if (current_camera.mode == CameraMode::MapViewer) {
                     update_freecam(dt, current_camera);
                     time += dt;
@@ -644,21 +759,26 @@ int game_loop(const char* filename, CameraMode camera_mode) {
                     stop_motor_sound(false);
                     Mute = true;
 
+                    Rec1->encode_frame_count();
+                    Rec2->encode_frame_count();
                     if (Single) {
-                        EolClient->exit_level(filename, time * TIME_TO_CENTISECONDS,
-                                              Motor1->apple_count - Motor1->apple_bug_count,
-                                              TotalApples, !finish_time);
+                        EolClient->exit_level(driv1, time * TIME_TO_CENTISECONDS, TotalApples);
                     }
 
                     Level->unflip_objects();
-                    Rec1->encode_frame_count();
-                    Rec2->encode_frame_count();
                     if (finish_time) {
                         return finish_time;
                     }
                     return -1;
                 }
                 time += dt;
+            }
+
+            // Input is fixed for a whole physics frame; a press on a frame
+            // that ran no subframes stays pending until physics advances
+            if (ran_subframes) {
+                driv1.one_frame_brake_pending = false;
+                driv2.one_frame_brake_pending = false;
             }
 
             if (!Single && FlagTag) {
@@ -671,6 +791,11 @@ int game_loop(const char* filename, CameraMode camera_mode) {
             } else {
                 set_friction_volume(driv1.sound.friction_volume + driv2.sound.friction_volume);
                 set_motor_frequency(false, driv2.sound.motor_frequency, driv2.sound.gas);
+            }
+
+            driv1.update_speed();
+            if (!Single) {
+                driv2.update_speed();
             }
 
             // Turn state
@@ -688,6 +813,7 @@ int game_loop(const char* filename, CameraMode camera_mode) {
         if (!Single) {
             update_graphical_metadata(driv2, true, time);
         }
+        EolClient->update_spy_kuskis();
 
         // Update the hud and player visibility
         update_view_settings(driv1, &driv2.draw_view);
@@ -722,9 +848,7 @@ int game_loop(const char* filename, CameraMode camera_mode) {
             Rec1->encode_frame_count();
             Rec2->encode_frame_count();
             if (Single) {
-                EolClient->exit_level(filename, time * TIME_TO_CENTISECONDS,
-                                      Motor1->apple_count - Motor1->apple_bug_count, TotalApples,
-                                      true);
+                EolClient->exit_level(driv1, time * TIME_TO_CENTISECONDS, TotalApples);
             }
             return -1;
         }
@@ -867,7 +991,7 @@ int replay_loop(const char* filename, bool restore_player_visibility) {
 
         // Get timestep
         double now = stopwatch();
-        double dt = (now - last_stopwatch) * 0.0024;
+        double dt = (now - last_stopwatch) * STOPWATCH_TO_PHYS_TIME;
         last_stopwatch = now;
 
         double speed = 1.0;
@@ -1036,7 +1160,7 @@ void render_replay(const char* level_filename) {
             break;
         }
 
-        double time = (double)VideoFrameIndex * (STOPWATCH_MULTIPLIER * 1000.0 * 0.0024) /
+        double time = (double)VideoFrameIndex * (pacer::MILLISECONDS_TO_PHYS_TIME * 1000.0) /
                       EolSettings->recording_fps();
 
         bool finished1 = !replay_frame(driv1, time, &driv2.draw_view);

@@ -1,7 +1,7 @@
 #ifndef RENDER_H
 #define RENDER_H
 
-#include "eol/eol_types.h"
+#include "eol/eol.h"
 #include "pic/lgr.h"
 #include "pic/pic8.h"
 #include "vect2.h"
@@ -43,7 +43,8 @@ class GameRenderer {
     bool draw_player2;
     bool splitscreen;
     double time;
-    driver& driv1, driv2;
+    driver& driv1;
+    driver& driv2;
     camera& current_camera;
     GameLoop loop;
     vect2 bottomleft_corner;

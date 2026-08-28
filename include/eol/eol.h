@@ -40,7 +40,8 @@ class eol {
     void process(const team_message&);
     void process(const spy_data&);
     void process(const spy_apple_data&);
-    void process(const clear_spy_data&);
+    void process(const stop_spy_data&);
+    void process(const server_config&);
     void process(const battle_started&);
     void process(const battle_countdown_ended&);
     void process(const battle_ended&);
@@ -55,8 +56,7 @@ class eol {
     void download_level(std::string_view name);
     void download_battle_level();
     void enter_level(const char* level_name, const level* lev, bool spying);
-    void exit_level(const char* level_name, double time, int apple_count, int level_apple_count,
-                    bool dead);
+    void exit_level(const driver& d, double time, int level_apple_count);
     void send_chat(std::string_view message);
     void send_kuski_data(double time, driver& driv);
 
@@ -75,6 +75,7 @@ class eol {
 
     bool in_apple_battle() const;
     bool battle_hides_exit() const;
+    bool battle_hides_times() const;
     std::optional<BattleAttributes::Kind> battle_cripples() const;
     bool kuski_has_flag(unsigned int kuski_id) const;
     bool own_bike_has_flag() const;
@@ -90,8 +91,18 @@ class eol {
     void clear_finished_times();
 
     const kuski* spy_kuski();
+    bool is_spying() const { return spy_kuski_id.has_value(); }
     void spy_next_kuski();
     void spy_prev_kuski();
+    void update_spy_kuskis();
+
+    void toggle_team_chat();
+
+    void pm_next_kuski();
+    void pm_prev_kuski();
+    void pm_jump_to_char(char c);
+    void clear_pm_kuski();
+    std::string chat_prompt() const;
 
     static pic8* load_shirt(std::string_view nick);
 
@@ -108,7 +119,9 @@ class eol {
     void record_apple_for_apple_battle(int object_index);
 
     const std::vector<kuski>& all_kuskis() const { return kuskis_; }
+    const char* find_nick(unsigned int kuski_id) const;
     std::string_view lookup_nick(unsigned int kuski_id) const;
+    void send_chat_line(std::string_view message);
 
     static std::string format_level(std::string_view level);
 
@@ -138,6 +151,9 @@ class eol {
     eol_table battle_queue_table;
     eol_table finished_times_table;
     std::optional<unsigned int> spy_kuski_id;
+    int min_spy_frames = 3;
+    bool is_team_chat = false;
+    std::optional<unsigned int> pm_kuski_id;
 };
 
 extern eol* EolClient;

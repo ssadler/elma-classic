@@ -5,7 +5,6 @@
 #include "main.h"
 #include "menu/rec_list.h"
 #include "physics/flagtag.h"
-#include "util/file_iter.h"
 #include "util/util.h"
 #include <algorithm>
 #include <cmath>
@@ -20,7 +19,8 @@ bool MergedRec = false;
 constexpr int MAGIC_NUMBER = 4796277;
 
 constexpr int FRAME_RATE = 30;
-constexpr double TIME_TO_FRAME_INDEX = FRAME_RATE / (STOPWATCH_MULTIPLIER * 1000.0 * 0.0024);
+constexpr double TIME_TO_FRAME_INDEX =
+    FRAME_RATE / (STOPWATCH_MULTIPLIER * 1000.0 * STOPWATCH_TO_PHYS_TIME);
 constexpr double FRAME_INDEX_TO_TIME = 1.0 / TIME_TO_FRAME_INDEX;
 
 constexpr int INITIAL_FRAMES = FRAME_RATE * 60 * 60; // 30 fps * 60 sec * 60 min
@@ -38,7 +38,7 @@ recorder::recorder() {
     frame_count_ = 0;
     event_count = 0;
     flagtag_ = 0;
-    level_filename[0] = 0;
+    memset(level_filename, 0, sizeof(level_filename));
 
     frames.reserve(INITIAL_FRAMES);
     events.reserve(INITIAL_EVENTS);
@@ -50,7 +50,7 @@ void recorder::erase(const char* lev_filename) {
     if (strlen(lev_filename) > MAX_FILENAME_LEN + 4) {
         internal_error("recorder::erase strlen");
     }
-    strcpy(level_filename, lev_filename);
+    strncpy(level_filename, lev_filename, sizeof(level_filename));
     frame_count_ = 0;
     event_count = 0;
     finished = false;

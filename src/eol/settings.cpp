@@ -1,11 +1,11 @@
 #include "eol/settings.h"
 #include "editor/editor.h"
-#include "game/level_load.h"
 #include "game/state.h"
 #include "main.h"
 #include "physics/init.h"
 #include "pic/lgr.h"
 #include "platform/implementation.h"
+#include "renderer/canvas.h"
 #include "renderer/object_overlay.h"
 #include <fstream>
 #define JSON_DIAGNOSTICS 1
@@ -65,11 +65,14 @@ template struct Default<eol_table::Align>;
 template struct Clamp<int>;
 template struct Clamp<double>;
 
-void eol_settings::set_screen_width(int w) { screen_width_ = w; }
+void eol_settings::set_pictures_in_background(bool b) {
+    if (pictures_in_background_ == b) {
+        return;
+    }
+    pictures_in_background_ = b;
+    canvas::invalidate_canvases();
+}
 
-void eol_settings::set_screen_height(int h) { screen_height_ = h; }
-
-void eol_settings::set_pictures_in_background(bool b) { pictures_in_background_ = b; }
 void eol_settings::set_default_ground(bool b) {
     default_ground_ = b;
     if (Level && Lgr) {
@@ -82,13 +85,6 @@ void eol_settings::set_default_sky(bool b) {
         Lgr->reload_default_textures(*Level, false);
     }
 }
-void eol_settings::set_default_ground_sky_key(combo_scancode key) { default_ground_sky_key_ = key; }
-
-void eol_settings::set_center_camera(bool b) { center_camera_ = b; }
-
-void eol_settings::set_center_map(bool b) { center_map_ = b; }
-
-void eol_settings::set_map_alignment(MapAlignment m) { map_alignment_ = m; }
 
 void eol_settings::set_renderer(RendererType r) {
     if (renderer_ == r) {
@@ -125,7 +121,7 @@ void eol_settings::set_minimap_zoom(double z) {
     if (z != minimap_zoom_) {
         minimap_zoom_ = z;
         set_minimap_zoom_factor();
-        invalidate_level();
+        canvas::invalidate_canvases();
     }
 }
 
@@ -141,58 +137,6 @@ void eol_settings::set_zoom_grass(bool zoom_grass) {
     invalidate_lgr_cache();
 }
 
-void eol_settings::set_turn_time(double t) { turn_time_ = t; }
-
-void eol_settings::set_lctrl_search(bool lctrl_search) { lctrl_search_ = lctrl_search; }
-
-void eol_settings::set_alovolt_key_player_a(DikScancode key) { alovolt_key_player_a_ = key; }
-void eol_settings::set_alovolt_key_player_b(DikScancode key) { alovolt_key_player_b_ = key; }
-void eol_settings::set_brake_alias_key_player_a(DikScancode key) {
-    brake_alias_key_player_a_ = key;
-}
-void eol_settings::set_brake_alias_key_player_b(DikScancode key) {
-    brake_alias_key_player_b_ = key;
-}
-void eol_settings::set_one_frame_brake_key_player_a(DikScancode key) {
-    one_frame_brake_key_player_a_ = key;
-}
-void eol_settings::set_one_frame_brake_key_player_b(DikScancode key) {
-    one_frame_brake_key_player_b_ = key;
-}
-
-void eol_settings::set_escape_alias_key(DikScancode key) { escape_alias_key_ = key; }
-void eol_settings::set_replay_fast_2x_key(DikScancode key) { replay_fast_2x_key_ = key; }
-void eol_settings::set_replay_fast_4x_key(DikScancode key) { replay_fast_4x_key_ = key; }
-void eol_settings::set_replay_fast_8x_key(DikScancode key) { replay_fast_8x_key_ = key; }
-void eol_settings::set_replay_slow_2x_key(DikScancode key) { replay_slow_2x_key_ = key; }
-void eol_settings::set_replay_slow_4x_key(DikScancode key) { replay_slow_4x_key_ = key; }
-void eol_settings::set_replay_pause_key(DikScancode key) { replay_pause_key_ = key; }
-void eol_settings::set_replay_rewind_key(DikScancode key) { replay_rewind_key_ = key; }
-
-void eol_settings::set_show_others_key(combo_scancode key) { show_others_key_ = key; }
-void eol_settings::set_spy_next_kuski_key(combo_scancode key) { spy_next_kuski_key_ = key; }
-void eol_settings::set_spy_prev_kuski_key(combo_scancode key) { spy_prev_kuski_key_ = key; }
-void eol_settings::set_battle_queue_key(combo_scancode key) { battle_queue_key_ = key; }
-void eol_settings::set_download_battle_level_key(combo_scancode key) {
-    download_battle_level_key_ = key;
-}
-void eol_settings::set_download_level_key(combo_scancode key) { download_level_key_ = key; }
-void eol_settings::set_players_online_key(combo_scancode key) { players_online_key_ = key; }
-void eol_settings::set_battle_results_key(combo_scancode key) { battle_results_key_ = key; }
-void eol_settings::set_finished_times_key(combo_scancode key) { finished_times_key_ = key; }
-void eol_settings::set_cycle_finished_times_filter_key(combo_scancode key) {
-    cycle_finished_times_filter_key_ = key;
-}
-void eol_settings::set_clear_finished_times_key(combo_scancode key) {
-    clear_finished_times_key_ = key;
-}
-void eol_settings::set_chat_key(combo_scancode key) { chat_key_ = key; }
-void eol_settings::set_show_chat_key(combo_scancode key) { show_chat_key_ = key; }
-void eol_settings::set_battle_status_key(combo_scancode key) { battle_status_key_ = key; }
-void eol_settings::set_battle_leader_key(combo_scancode key) { battle_leader_key_ = key; }
-void eol_settings::set_reconnect_key(combo_scancode key) { reconnect_key_ = key; }
-void eol_settings::set_disconnect_key(combo_scancode key) { disconnect_key_ = key; }
-
 void eol_settings::set_default_lgr_name(std::string name) {
     if (default_lgr_name_.value != name) {
         default_lgr_name_ = std::move(name);
@@ -204,37 +148,6 @@ void eol_settings::set_fancyboost(bool b) {
     fancyboost_ = b;
     invalidate_lgr_cache();
 }
-
-void eol_settings::set_show_last_apple_time(bool show) { show_last_apple_time_ = show; }
-void eol_settings::set_show_gravity_arrows(bool b) { show_gravity_arrows_ = b; }
-
-void eol_settings::set_show_fps(bool show) { show_fps_ = show; }
-void eol_settings::set_show_ups(bool show) { show_ups_ = show; }
-void eol_settings::set_recording_fps(int fps) { recording_fps_ = fps; }
-
-void eol_settings::set_show_demo_menu(bool show) { show_demo_menu_ = show; }
-void eol_settings::set_show_help_menu(bool show) { show_help_menu_ = show; }
-void eol_settings::set_show_about_menu(bool show) { show_about_menu_ = show; }
-void eol_settings::set_show_best_times_menu(bool show) { show_best_times_menu_ = show; }
-void eol_settings::set_skip_intro(bool skip) { skip_intro_ = skip; }
-
-void eol_settings::set_still_objects(bool still) { still_objects_ = still; }
-
-void eol_settings::set_all_internals_accessible(bool b) { all_internals_accessible_ = b; }
-
-void eol_settings::set_show_total_time(bool show) { show_total_time_ = show; }
-
-void eol_settings::set_minimap_width(int w) { minimap_width_ = w; }
-
-void eol_settings::set_minimap_height(int h) { minimap_height_ = h; }
-
-void eol_settings::set_minimap_opacity(int opacity) { minimap_opacity_ = opacity; }
-
-void eol_settings::set_chat_lines(int lines) { chat_lines_ = lines; }
-
-void eol_settings::set_cripple_no_brake(bool b) { cripple_no_brake_ = b; }
-
-void eol_settings::set_cripple_drunk(bool b) { cripple_drunk_ = b; }
 
 void eol_settings::set_cripple_no_throttle(bool b) {
     cripple_no_throttle_ = b;
@@ -257,36 +170,12 @@ void eol_settings::set_cripple_no_turn(bool b) {
     }
 }
 
-void eol_settings::set_cripple_no_volt(bool b) { cripple_no_volt_ = b; }
-
 void eol_settings::set_cripple_one_turn(bool b) {
     cripple_one_turn_ = b;
     if (b) {
         cripple_no_turn_ = false;
     }
 }
-
-void eol_settings::set_hostname(std::string hostname) { hostname_ = std::move(hostname); }
-
-void eol_settings::set_tcp_port(int p) { tcp_port_ = p; }
-
-void eol_settings::set_nick(std::string nick) { nick_ = std::move(nick); }
-
-void eol_settings::set_password(std::string password) { password_ = std::move(password); }
-
-void eol_settings::set_play_offline(bool o) { play_offline_ = o; }
-
-void eol_settings::set_tcp_only(bool t) { tcp_only_ = t; }
-
-void eol_settings::set_show_others(bool s) { show_others_ = s; }
-
-void eol_settings::set_show_battle_status(bool s) { show_battle_status_ = s; }
-
-void eol_settings::set_show_battle_leader(bool s) { show_battle_leader_ = s; }
-
-void eol_settings::set_table_alignment(eol_table::Align a) { table_alignment_ = a; }
-
-void eol_settings::set_chat_visibility(ChatVisibility c) { chat_visibility_ = c; }
 
 /*
  * This uses the nlohmann json library to (de)serialise `eol_settings` to json.
@@ -437,6 +326,7 @@ void from_json(const json& j, combo_scancode& r) { r = combo_scancode((unsigned 
     JSON_FIELD(screen_width)                                                                       \
     JSON_FIELD(screen_height)                                                                      \
                                                                                                    \
+    JSON_FIELD(high_quality_key)                                                                   \
     JSON_FIELD(pictures_in_background)                                                             \
     JSON_FIELD(default_ground)                                                                     \
     JSON_FIELD(default_sky)                                                                        \
@@ -483,10 +373,17 @@ void from_json(const json& j, combo_scancode& r) { r = combo_scancode((unsigned 
     JSON_FIELD(clear_finished_times_key)                                                           \
     JSON_FIELD(chat_key)                                                                           \
     JSON_FIELD(show_chat_key)                                                                      \
+    JSON_FIELD(team_chat_key)                                                                      \
+    JSON_FIELD(pm_next_kuski_key)                                                                  \
+    JSON_FIELD(pm_prev_kuski_key)                                                                  \
+    JSON_FIELD(pm_clear_kuski_key)                                                                 \
     JSON_FIELD(battle_status_key)                                                                  \
     JSON_FIELD(battle_leader_key)                                                                  \
+    JSON_FIELD(speedometer_key)                                                                    \
     JSON_FIELD(reconnect_key)                                                                      \
     JSON_FIELD(disconnect_key)                                                                     \
+    JSON_FIELD(toggle_one_wheel_status_key)                                                        \
+    JSON_FIELD(toggle_last_apple_time_key)                                                         \
                                                                                                    \
     JSON_FIELD(default_lgr_name)                                                                   \
     JSON_FIELD(fancyboost)                                                                         \
@@ -496,6 +393,8 @@ void from_json(const json& j, combo_scancode& r) { r = combo_scancode((unsigned 
                                                                                                    \
     JSON_FIELD(show_fps)                                                                           \
     JSON_FIELD(show_ups)                                                                           \
+    JSON_FIELD(fps_limit_enabled)                                                                  \
+    JSON_FIELD(fps_limit)                                                                          \
     JSON_FIELD(recording_fps)                                                                      \
                                                                                                    \
     JSON_FIELD(show_demo_menu)                                                                     \
@@ -517,15 +416,21 @@ void from_json(const json& j, combo_scancode& r) { r = combo_scancode((unsigned 
     JSON_FIELD(cripple_no_volt)                                                                    \
     JSON_FIELD(cripple_one_turn)                                                                   \
     JSON_FIELD(cripple_drunk)                                                                      \
+    JSON_FIELD(cripple_one_wheel)                                                                  \
+    JSON_FIELD(show_one_wheel_status)                                                              \
     JSON_FIELD(hostname)                                                                           \
     JSON_FIELD(tcp_port)                                                                           \
+    JSON_FIELD(udp_port)                                                                           \
     JSON_FIELD(nick)                                                                               \
     JSON_FIELD(password)                                                                           \
     JSON_FIELD(play_offline)                                                                       \
     JSON_FIELD(tcp_only)                                                                           \
+                                                                                                   \
     JSON_FIELD(show_others)                                                                        \
     JSON_FIELD(show_battle_status)                                                                 \
     JSON_FIELD(show_battle_leader)                                                                 \
+    JSON_FIELD(show_speedometer)                                                                   \
+                                                                                                   \
     JSON_FIELD(table_alignment)                                                                    \
     JSON_FIELD(chat_visibility)
 
@@ -587,6 +492,7 @@ void eol_settings::sync_controls_to_state(state* s) {
     s->keys2.one_frame_brake = EolSettings->one_frame_brake_key_player_b();
 
     s->key_escape_alias = EolSettings->escape_alias_key();
+    s->key_high_quality = EolSettings->high_quality_key();
     s->key_default_ground_sky = EolSettings->default_ground_sky_key();
 
     s->key_replay_fast_2x = EolSettings->replay_fast_2x_key();
@@ -610,10 +516,17 @@ void eol_settings::sync_controls_to_state(state* s) {
     s->key_clear_finished_times = EolSettings->clear_finished_times_key();
     s->key_chat = EolSettings->chat_key();
     s->key_show_chat = EolSettings->show_chat_key();
+    s->key_team_chat = EolSettings->team_chat_key();
+    s->key_pm_next_kuski = EolSettings->pm_next_kuski_key();
+    s->key_pm_prev_kuski = EolSettings->pm_prev_kuski_key();
+    s->key_pm_clear_kuski = EolSettings->pm_clear_kuski_key();
     s->key_battle_status = EolSettings->battle_status_key();
     s->key_battle_leader = EolSettings->battle_leader_key();
+    s->key_speedometer = EolSettings->speedometer_key();
     s->key_reconnect = EolSettings->reconnect_key();
     s->key_disconnect = EolSettings->disconnect_key();
+    s->key_toggle_one_wheel_status = EolSettings->toggle_one_wheel_status_key();
+    s->key_toggle_last_apple_time = EolSettings->toggle_last_apple_time_key();
 }
 
 void eol_settings::sync_controls_from_state(state* s) {
@@ -629,6 +542,7 @@ void eol_settings::sync_controls_from_state(state* s) {
     EolSettings->persist_one_frame_brake_key_player_b(s->keys2.one_frame_brake);
 
     EolSettings->persist_escape_alias_key(s->key_escape_alias);
+    EolSettings->persist_high_quality_key(s->key_high_quality);
     EolSettings->persist_default_ground_sky_key(s->key_default_ground_sky);
 
     EolSettings->persist_replay_fast_2x_key(s->key_replay_fast_2x);
@@ -652,8 +566,15 @@ void eol_settings::sync_controls_from_state(state* s) {
     EolSettings->persist_clear_finished_times_key(s->key_clear_finished_times);
     EolSettings->persist_chat_key(s->key_chat);
     EolSettings->persist_show_chat_key(s->key_show_chat);
+    EolSettings->persist_team_chat_key(s->key_team_chat);
+    EolSettings->persist_pm_next_kuski_key(s->key_pm_next_kuski);
+    EolSettings->persist_pm_prev_kuski_key(s->key_pm_prev_kuski);
+    EolSettings->persist_pm_clear_kuski_key(s->key_pm_clear_kuski);
     EolSettings->persist_battle_status_key(s->key_battle_status);
     EolSettings->persist_battle_leader_key(s->key_battle_leader);
+    EolSettings->persist_speedometer_key(s->key_speedometer);
     EolSettings->persist_reconnect_key(s->key_reconnect);
     EolSettings->persist_disconnect_key(s->key_disconnect);
+    EolSettings->persist_toggle_one_wheel_status_key(s->key_toggle_one_wheel_status);
+    EolSettings->persist_toggle_last_apple_time_key(s->key_toggle_last_apple_time);
 }

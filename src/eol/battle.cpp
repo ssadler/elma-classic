@@ -6,6 +6,7 @@
 #include "pic/abc8.h"
 #include "pic/pic8.h"
 #include "platform/implementation.h"
+#include "platform/utils.h"
 #include "util/util.h"
 #include <algorithm>
 #include <filesystem>
@@ -119,13 +120,40 @@ std::string eol::format_level(std::string_view level) {
     return with_ext;
 }
 
+// First Finish battle results in Sju250.lev (apple bugs, see others)
 void eol::set_battle_results_title(const char* label) {
-    std::string new_title = std::format("{} {} in {}", format_battle_type(current_battle->type),
-                                        label, format_level(current_battle->level_filename));
+    using namespace BattleAttributes;
+
+    constexpr std::pair<Kind, std::string_view> extras[] = {
+        {AcceptBugs, "apple bugs"},
+        {AllowStarter, "allow starter"},
+        {SeeOthers, "see others"},
+    };
+
+    std::string new_title = std::format("{} {}", format_battle_type(current_battle->type), label);
+    if (current_battle->type != BattleType::HourTT) {
+        new_title += std::format(" in {}", format_level(current_battle->level_filename));
+    }
+
+    std::string details;
     if (current_battle->type == BattleType::Apple) {
         uint32_t apple_count = current_battle->level_apple_count;
-        new_title += std::format(" ({} apple{})", apple_count, apple_count == 1 ? "" : "s");
+        details = std::format("{} apple{}", apple_count, apple_count == 1 ? "" : "s");
     }
+
+    for (auto [flag, text] : extras) {
+        if (current_battle->attributes & flag) {
+            if (!details.empty()) {
+                details += ", ";
+            }
+            details += text;
+        }
+    }
+
+    if (!details.empty()) {
+        new_title += std::format(" ({})", details);
+    }
+
     battle_results_table.set_title(new_title);
 }
 
@@ -149,6 +177,11 @@ static bool battle_type_hides_exit(BattleType t) {
 
 bool eol::battle_hides_exit() const {
     return current_battle && battle_type_hides_exit(current_battle->type) &&
+           proto.playing_battle_level();
+}
+
+bool eol::battle_hides_times() const {
+    return current_battle && !(current_battle->attributes & BattleAttributes::SeeTimes) &&
            proto.playing_battle_level();
 }
 
@@ -267,8 +300,18 @@ void eol::toggle_show_battle_leader() const {
 }
 
 void eol::upsert_leaderboard_entry(const battle_leaderboard_entry& entry, uint16_t rank) {
+    // Reconnecting mid-battle assigns a new kuski id, so the stale line is only
+    // found by nick; multi lines may also arrive with the pair swapped.
+    auto nick_eq = [](const char* a, const char* b) { return a && b && strcmpi(a, b) == 0; };
+    const char* nick = find_nick(entry.kuski_id);
+    const char* nick2 = find_nick(entry.kuski_id2);
     std::erase_if(battle_leaderboard_, [&](const battle_leaderboard_entry& e) {
-        return e.kuski_id == entry.kuski_id && e.kuski_id2 == entry.kuski_id2;
+        const char* e_nick = find_nick(e.kuski_id);
+        const char* e_nick2 = find_nick(e.kuski_id2);
+        return ((e.kuski_id == entry.kuski_id || nick_eq(e_nick, nick)) &&
+                (e.kuski_id2 == entry.kuski_id2 || nick_eq(e_nick2, nick2))) ||
+               ((e.kuski_id == entry.kuski_id2 || nick_eq(e_nick, nick2)) &&
+                (e.kuski_id2 == entry.kuski_id || nick_eq(e_nick2, nick)));
     });
     size_t idx = std::min<size_t>(rank, battle_leaderboard_.size());
     battle_leaderboard_.insert(battle_leaderboard_.begin() + idx, entry);
@@ -371,8 +414,15 @@ std::string eol::battle_leader_line() const {
     if (battle_leaderboard_.empty()) {
         return flag_text;
     }
+
     const battle_leaderboard_entry& leader = battle_leaderboard_.front();
     if (leader.score == 0 && leader.apple_count == 0) {
+        return flag_text;
+    }
+
+    // An unfinished internal counts as STATS_MAX_TIME, so this total means nothing was finished.
+    if (current_battle->type == BattleType::HourTT &&
+        leader.score == (INTERNAL_LEVEL_COUNT - 1) * STATS_MAX_TIME) {
         return flag_text;
     }
 
@@ -390,7 +440,8 @@ std::string eol::battle_leader_line() const {
 }
 
 void eol::render_battle_leader(pic8& dest, abc8& font) const {
-    if (!EolSettings->show_battle_leader() || !current_battle) {
+    if (!EolSettings->show_battle_leader() || !EolSettings->show_battle_status() ||
+        !current_battle) {
         return;
     }
 
@@ -437,6 +488,6 @@ void eol::sync_battle_queue_table() {
         std::string duration =
             std::format("{} min{}", entry.duration_minutes, entry.duration_minutes == 1 ? "" : "s");
         battle_queue_table.add_row(
-            {std::string(nick), std::move(duration), format_battle_type(entry.battle_type)});
+            {std::string(nick), format_battle_type(entry.battle_type), std::move(duration)});
     }
 }

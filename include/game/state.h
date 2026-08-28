@@ -9,6 +9,8 @@ constexpr int MAX_PLAYERNAME_LENGTH = 14;
 constexpr int STATE_LEVEL_COUNT = 90;
 constexpr int INTERNAL_LEVEL_COUNT = 55;
 constexpr int MAX_TIMES = 10;
+// Default time if uncompleted level: 10 minutes
+constexpr int STATS_MAX_TIME = 100 * 60 * 10;
 
 struct player {
     char name[MAX_PLAYERNAME_LENGTH + 2];
@@ -77,6 +79,7 @@ class state {
     DikScancode key_decrease_screen_size;
     DikScancode key_screenshot;
     DikScancode key_escape_alias;
+    combo_scancode key_high_quality;
     combo_scancode key_default_ground_sky;
 
     DikScancode key_replay_fast_2x;
@@ -100,10 +103,17 @@ class state {
     combo_scancode key_clear_finished_times;
     combo_scancode key_chat;
     combo_scancode key_show_chat;
+    combo_scancode key_team_chat;
+    combo_scancode key_pm_next_kuski;
+    combo_scancode key_pm_prev_kuski;
+    combo_scancode key_pm_clear_kuski;
     combo_scancode key_battle_status;
     combo_scancode key_battle_leader;
+    combo_scancode key_speedometer;
     combo_scancode key_reconnect;
     combo_scancode key_disconnect;
+    combo_scancode key_toggle_one_wheel_status;
+    combo_scancode key_toggle_last_apple_time;
 
     char editor_filename[20];
     char external_filename[20];

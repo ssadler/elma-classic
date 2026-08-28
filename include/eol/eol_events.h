@@ -2,6 +2,7 @@
 #define EOL_EVENTS_H
 
 #include "eol/eol_types.h"
+#include "eol/kuski.h"
 #include "main.h"
 #include <cstdint>
 #include <span>
@@ -65,6 +66,7 @@ struct exit_level {
     int apple_count;
     int level_apple_count;
     bool dead;
+    bool esc;
 };
 
 struct spy_apple_data {
@@ -82,8 +84,13 @@ struct restore_apple_battle_progress {
     bool apples_taken[MAX_OBJECTS];
 };
 
-struct clear_spy_data {
+struct stop_spy_data {
     unsigned int kuski_id;
+};
+
+struct server_config {
+    // Number of frames to buffer before spy playback starts.
+    uint8_t min_spy_frames;
 };
 
 struct send_kuski_data {
@@ -105,6 +112,13 @@ struct chat_message {
 
 struct send_chat {
     unsigned int kuski_id;
+    std::string_view message;
+};
+
+struct send_pm {
+    unsigned int from_kuski_id;
+    unsigned int to_kuski_id; // 0 = team chat
+    bool is_team_chat;
     std::string_view message;
 };
 
