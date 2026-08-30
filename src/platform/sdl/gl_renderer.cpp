@@ -168,6 +168,7 @@ void gl_init(SDL_Window* sdl_window, int width, int height, int pitch) {
     if (!GLContext) {
         internal_error(std::string("Failed to create OpenGL context:\n") + SDL_GetError());
     }
+printf("created context = %p\n", GLContext);
 
     if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
         internal_error("Failed to initialize GLAD");

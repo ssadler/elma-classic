@@ -1385,6 +1385,21 @@ void canvas::render(bool player1, pic8* pic, vect2 corner, int x1, int y1, int x
     DefaultForeground = nullptr;
     DefaultBackground = nullptr;
 }
+int canvas::get_foreground_offset(vect2 corner) {
+    // Convert corner frame of reference from meters to pixels
+    int view_bottom = 0;
+    int view_left = 0;
+    meters_to_pixels(corner, &view_left, &view_bottom);
+    return positive_modulo(view_left, Lgr->foreground_original_width);
+}
+int canvas::get_background_offset(vect2 corner) {
+    // Convert corner frame of reference from meters to pixels
+    int view_bottom = 0;
+    int view_left = 0;
+    meters_to_pixels(corner, &view_left, &view_bottom);
+    constexpr int PARALLAX = 2;
+    return positive_modulo(view_left / PARALLAX, Lgr->background_original_width);
+}
 
 void canvas::render_minimap(bool player1, pic8* pic, vect2 corner, int x1, int y1, int x2, int y2) {
     if (x1 >= x2 || y1 >= y2) {
@@ -1705,13 +1720,13 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
     auto n_rows = rows.size();
 
     auto get_pic_ptr_offset = [](long ptr, pic8* pic) -> std::array<int, 2> {
-                int w = pic->get_row(1) - pic->get_row(0);
-                auto h = pic->get_height();
-                long off = ptr - (long) pic->get_row(0);
-                if (off >= 0 && off < w * h) {
-                    return {(int) off, w};
-                }
-                return {-1, -1};
+        int w = pic->get_row(1) - pic->get_row(0);
+        auto h = pic->get_height();
+        long off = ptr - (long) pic->get_row(0);
+        if (off >= 0 && off < w * h) {
+            return {(int) off, w};
+        }
+        return {-1, -1};
     };
 
     auto add_span = [&](int x, int y, canvas_chunk* span) {
@@ -1720,13 +1735,16 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
         } else if (span->pixels == canvas_pixels::default_background()) {
             spans.emplace_back(x, y, span->width, 0, 0, -2);
         } else if (span->pixels == canvas_pixels::transparent()) {
-            // noop
+            /* noop */
         } else {
 
             auto p = (long) span->pixels.to_pointer();
 
             auto tex_id = span->pixels.texture_id();
 
+            /*
+             * Grass
+             */
             if (tex_id > 0xFFFFF) {
                 auto& t = Lgr->grass_pics->elements[tex_id & 0xFFFFF];
 
@@ -1740,6 +1758,9 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
                 return;
             }
 
+            /*
+             * Sprite
+             */
             if (tex_id > 0xFFFF) {
                 auto& pic = Lgr->pictures[tex_id & 0xFFFF];
                 long off = p - (long) pic.data;
@@ -1751,6 +1772,10 @@ std::vector<canvas::canvas_export_span> canvas::export_spans() {
                 return;
             }
 
+
+            /*
+             * Texture
+             */
             if (tex_id >= 0) {
                 auto& tex = Lgr->textures[tex_id];
                 auto [off, w] = get_pic_ptr_offset(p, tex.pic);

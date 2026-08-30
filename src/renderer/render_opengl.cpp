@@ -155,12 +155,12 @@ class OpenGLRenderer : public PicRenderer {
         GL_DEBUG
         Background.render();
         GL_DEBUG
-        Canvas.render(true);
+        Canvas.render(true, bottomleft_corner);
         GL_DEBUG
     }
 
     void render_front(bool) override {
-        Canvas.render(false);
+        Canvas.render(false, bottomleft_corner);
         GL_DEBUG
     }
 

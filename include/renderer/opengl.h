@@ -1,7 +1,6 @@
 #ifndef RENDER_OPENGL_H
 #define RENDER_OPENGL_H
 
-#include "eol/eol_types.h"
 #include "game/driver.h"
 #include "pic/anim.h"
 #include "pic/lgr.h"
@@ -47,7 +46,7 @@ struct gl_lifecycle {
 };
 
 extern gl_lifecycle<> Kuski;
-extern gl_lifecycle<bool> Canvas;
+extern gl_lifecycle<bool, vect2> Canvas;
 extern gl_lifecycle<const kuski*> Objects;
 extern gl_lifecycle<> Background;
 extern gl_lifecycle<GLuint, int, int, int, int> GlMinimap;

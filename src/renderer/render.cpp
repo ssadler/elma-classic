@@ -21,6 +21,7 @@
 #include "renderer/affine.h"
 #include "renderer/canvas.h"
 #include "renderer/object_overlay.h"
+#include "renderer/opengl.h"
 #include "renderer/timer.h"
 #include "util/util.h"
 #include <algorithm>
@@ -302,7 +303,7 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
     // Set part of screen to draw on
     subview(left, bottom, right, top);
 
-    // Draw the background
+    // Draw the background canvas
     render_back(player1);
 
     // Draw the objects
@@ -355,7 +356,7 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
                     driv.mot, &driv.meta, bike1, shirt);
     }
 
-    // Draw the foreground
+    // Draw the foreground canvas
     if (!EolSettings->pictures_in_background()) {
         render_front(player1);
     }
@@ -485,12 +486,19 @@ void GameRenderer::dispatch_minimap(bool player1, double camera_turn_phase, vect
                    bottomleft_corner, camera_pos);
 }
 
+static int II = 0;
+
 void render_game(double time, driver& driv1, driver& driv2, camera& current_camera, GameLoop loop) {
     reload_graphic_assets();
 
     fps::update();
 
-    auto renderer = createPicRenderer(time, driv1, driv2, current_camera, loop);
-
-    renderer->render();
+    //if (is_opengl_render()) { // (II++ / 1000) % 2 == 0) {
+    if ((II++ / 1000) % 2 == 0) {
+        auto renderer = createOpenGLRenderer(time, driv1, driv2, current_camera, loop);
+        renderer->render();
+    } else {
+        auto renderer = createPicRenderer(time, driv1, driv2, current_camera, loop);
+        renderer->render();
+    }
 }

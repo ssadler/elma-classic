@@ -18,6 +18,7 @@ struct span_render_group {
     float tex_size[2];
     int start;
     int count;
+    int pic_id;
 };
 struct canvas_painter {
     bool is_back;
@@ -53,6 +54,7 @@ static canvas_painter* init_painter(bool is_back) {
 
     uniform vec2 origin;
     uniform vec2 texSize;
+    uniform int worldTexOffset;
 
     out vec2 uv;
 
@@ -88,9 +90,13 @@ static canvas_painter* init_painter(bool is_back) {
 
         // for world aligned textures (bg etc)
         } else {
-            uv = pos / (texSize * p2m);
-        }
 
+            // fix bg relative to screen
+            uv = p * screenSize / texSize;
+
+            // x axis parallax offset
+            uv.x += worldTexOffset / texSize.x;
+        }
     }
     )";
 
@@ -177,6 +183,7 @@ static void reload(canvas_painter* painter) {
             painter->groups.emplace_back();
             current = &painter->groups.back();
             current->start = i;
+            current->pic_id = span.pic_id;
             current->vao.add_input_ints(3);
             current->vao.add_input_ints(3);
             current->vao.vertex_array_binding_divisor = 1;
@@ -232,7 +239,7 @@ static void reload(canvas_painter* painter) {
 
 
 
-static void render(canvas_painter* paint) {
+static void render(canvas_painter* paint, vect2 bottomleft_corner) {
 
     if (!paint->loaded) {
         reload(paint);
@@ -252,6 +259,11 @@ static void render(canvas_painter* paint) {
         } else {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, group.tex & 0xffff);
+
+            if (group.pic_id == -2) {
+                auto off_x = CanvasBack->get_background_offset(bottomleft_corner);
+                paint->gfx.uniform1i("worldTexOffset", off_x);
+            }
         }
 
         group.vao.bind();
@@ -261,7 +273,7 @@ static void render(canvas_painter* paint) {
 
 
 
-gl_lifecycle<bool> Canvas = {
+gl_lifecycle<bool, vect2> Canvas = {
     .init = [] {
         Back = init_painter(true);
         Front = init_painter(false);
@@ -274,7 +286,7 @@ gl_lifecycle<bool> Canvas = {
         Back->loaded = false;
         Front->loaded = false;
     },
-    .render = [](bool is_back) {
-        render(is_back ? Back : Front);
+    .render = [](bool is_back, vect2 bottomleft_corner) {
+        render(is_back ? Back : Front, bottomleft_corner);
     }
 };
