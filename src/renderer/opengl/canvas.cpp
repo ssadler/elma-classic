@@ -35,20 +35,7 @@ static canvas_painter* init_painter(bool is_back) {
     auto paint = new canvas_painter{is_back, GraphicsProgram("canvas"), {}};
     auto gfx = &paint->gfx;
 
-    gfx->vert = R"(
-    #version 410 core
-
-    layout(std140) uniform GlobalData {
-        vec4 uFrustum;
-        float CanvasPixelsToMeters;
-        float time;
-        ivec2 screenSize;
-        int mins;
-        int secs;
-        int csecs;
-        float ZoomPixelsToMeters;
-    };
-
+    gfx->vert = SHADER_GLOBALS + R"(
     layout(location = 0) in ivec3 loc;
     layout(location = 1) in ivec3 off;
 
@@ -65,13 +52,13 @@ static canvas_painter* init_painter(bool is_back) {
 
     void main()
     {
-        float p2m = CanvasPixelsToMeters;
+        float p2m = globals.PixelsToMeters;
         vec2 lo = vec2(loc.x, loc.y) * p2m + origin;
         vec2 hi = lo + vec2(loc.z, 1.0) * p2m;
 
         vec2 v = verts[gl_VertexID];
         vec2 pos = hi * v + lo * (vec2(1.0)-v);
-        vec2 p = (pos - uFrustum.xy) / (uFrustum.zw - uFrustum.xy);
+        vec2 p = (pos - globals.frustum.xy) / (globals.frustum.zw - globals.frustum.xy);
         gl_Position = vec4(-1.0 + p.x * 2.0, -1.0 + p.y * 2.0, 0.0, 1.0);
 
 
@@ -92,26 +79,15 @@ static canvas_painter* init_painter(bool is_back) {
         } else {
 
             // fix bg relative to screen
-            uv = p * screenSize / texSize;
+            uv = p * globals.screenSize / texSize;
 
             // x axis parallax offset
-            uv.x += worldTexOffset / texSize.x;
+            uv.x += globals.canvas_corner.x / 2.0 / texSize.x;
         }
     }
     )";
 
-    gfx->frag = std::string(R"(
-    #version 410 core
-    layout(std140) uniform GlobalData {
-        vec4 uFrustum;
-        float CanvasPixelsToMeters;
-        float time;
-        ivec2 screenSize;
-        int mins;
-        int secs;
-        int csecs;
-        float ZoomPixelsToMeters;
-    };
+    gfx->frag = SHADER_GLOBALS + R"(
     layout(std140) uniform Palette { vec4 palette[256]; };
 
     in vec2 uv;
@@ -122,7 +98,7 @@ static canvas_painter* init_painter(bool is_back) {
 
     out vec4 FragColor;
 
-    )") + TimerGLSL + R"(
+    )" + TimerGLSL + R"(
 
     void main() {
 
@@ -239,7 +215,7 @@ static void reload(canvas_painter* painter) {
 
 
 
-static void render(canvas_painter* paint, vect2 bottomleft_corner) {
+static void render(canvas_painter* paint) {
 
     if (!paint->loaded) {
         reload(paint);
@@ -259,11 +235,6 @@ static void render(canvas_painter* paint, vect2 bottomleft_corner) {
         } else {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, group.tex & 0xffff);
-
-            if (group.pic_id == -2) {
-                auto off_x = CanvasBack->get_background_offset(bottomleft_corner);
-                paint->gfx.uniform1i("worldTexOffset", off_x);
-            }
         }
 
         group.vao.bind();
@@ -273,7 +244,7 @@ static void render(canvas_painter* paint, vect2 bottomleft_corner) {
 
 
 
-gl_lifecycle<bool, vect2> Canvas = {
+gl_lifecycle<bool> Canvas = {
     .init = [] {
         Back = init_painter(true);
         Front = init_painter(false);
@@ -286,7 +257,7 @@ gl_lifecycle<bool, vect2> Canvas = {
         Back->loaded = false;
         Front->loaded = false;
     },
-    .render = [](bool is_back, vect2 bottomleft_corner) {
-        render(is_back ? Back : Front, bottomleft_corner);
+    .render = [](bool is_back) {
+        render(is_back ? Back : Front);
     }
 };

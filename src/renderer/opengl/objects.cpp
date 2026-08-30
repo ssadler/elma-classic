@@ -27,13 +27,7 @@ static object_painter* init_painter(std::string name) {
 
     auto painter = new object_painter{Graphics(std::move(name)), {}};
 
-    const char* vert = R"(
-    #version 410 core
-    layout(std140) uniform GlobalData {
-        vec4 uFrustum;
-        float PixelsToMeters;
-        float iTime;
-    };
+    auto vert = SHADER_GLOBALS + R"(
     layout (location = 0) in vec2 pos;
     layout (location = 1) in float floatingPhase;
     layout (location = 2) in int gravArrowIn;
@@ -51,22 +45,21 @@ static object_painter* init_painter(std::string name) {
 
     void main() {
 
-        float frame = floor(iTime / 0.014);
+        float frame = floor(globals.time / 0.014);
 
         vec2 v = verts[gl_VertexID];
         uv = v;
 
-        fragTexCoord = vec2(v.x, 1.0-v.y);
+        fragTexCoord = vec2(v.x, v.y);
         fragTexCoord.y /= frameCount;
         fragTexCoord.y += (1.0/frameCount) * mod(frame, frameCount);
 
-        vec2 size = frameSize * PixelsToMeters / 2.0;
-        vec2 p = (pos - size) * v + (pos + size) * (vec2(1.0) - v);
+        vec2 size = frameSize * globals.PixelsToMeters / 2.0;
+        vec2 p = (pos + size) * v + (pos - size) * (vec2(1.0) - v);
+        p.y += (5.0/48.0) * sin(globals.time * 15.5 + floatingPhase);
 
-        //float dy = -p.y;// + .05 * sin(iTime * 15.5 + floatingPhase);
-
-        float x = (p.x-uFrustum.x)/(uFrustum.z-uFrustum.x);
-        float y = (p.y-uFrustum.y)/(uFrustum.w-uFrustum.y);
+        float x = (p.x-globals.frustum.x)/(globals.frustum.z-globals.frustum.x);
+        float y = (p.y-globals.frustum.y)/(globals.frustum.w-globals.frustum.y);
         
         vec2 ndc = vec2(-1.0 + x * 2.0, -1.0 + y * 2.0);
 
@@ -76,8 +69,7 @@ static object_painter* init_painter(std::string name) {
     }
     )";
 
-    const char* frag = R"(
-    #version 410 core
+    auto frag = SHADER_GLOBALS + R"(
     layout(std140) uniform Palette { vec4 palette[256]; };
     in vec2 fragTexCoord;
     in vec2 uv;
@@ -137,8 +129,8 @@ static object_painter* init_painter(std::string name) {
     )";
 
     auto gfx = &painter->gfx;
-    gfx->set_vertex_shader(vert);
-    gfx->set_fragment_shader(frag);
+    gfx->set_vertex_shader(vert.c_str());
+    gfx->set_fragment_shader(frag.c_str());
     gfx->add_input_floats(2, GL_FALSE);
     gfx->add_input_floats(1, GL_FALSE);
     gfx->add_input_ints(1);

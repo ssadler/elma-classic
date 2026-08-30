@@ -132,17 +132,17 @@ void drawTimer() {
 
     // Draw timer
 
-    drawDigit(refPos + vec2(-110.0, 0.0), mins & 127);
-    drawDigit(refPos + vec2(-74.0, 0.0), mins >> 7);
+    drawDigit(refPos + vec2(-110.0, 0.0), globals.mins & 127);
+    drawDigit(refPos + vec2(-74.0, 0.0), globals.mins >> 7);
 
     drawColon(refPos + vec2(-46, 0));
 
-    drawDigit(refPos + vec2(-18.0, 0.0), secs & 127);
-    drawDigit(refPos + vec2(18.0, 0.0), secs >> 7);
+    drawDigit(refPos + vec2(-18.0, 0.0), globals.secs & 127);
+    drawDigit(refPos + vec2(18.0, 0.0), globals.secs >> 7);
 
     drawColon(refPos + vec2(46, 0));
 
-    drawDigit(refPos + vec2(74.0, 0.0), csecs & 127);
-    drawDigit(refPos + vec2(110.0, 0.0), csecs >> 7);
+    drawDigit(refPos + vec2(74.0, 0.0), globals.csecs & 127);
+    drawDigit(refPos + vec2(110.0, 0.0), globals.csecs >> 7);
 }
 )";

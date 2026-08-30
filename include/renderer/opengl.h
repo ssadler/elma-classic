@@ -11,6 +11,7 @@
 #include <functional>
 #include <glad/glad.h>
 #include <map>
+#include <string>
 
 
 
@@ -36,7 +37,6 @@ struct RenderKuski {
     const pic8* shirt;
 };
 
-
 template<typename ...Args>
 struct gl_lifecycle {
   std::function<void()> init = []{};
@@ -46,7 +46,7 @@ struct gl_lifecycle {
 };
 
 extern gl_lifecycle<> Kuski;
-extern gl_lifecycle<bool, vect2> Canvas;
+extern gl_lifecycle<bool> Canvas;
 extern gl_lifecycle<const kuski*> Objects;
 extern gl_lifecycle<> Background;
 extern gl_lifecycle<GLuint, int, int, int, int> GlMinimap;
@@ -78,16 +78,38 @@ inline lgr_texture_cache LgrTexture;
 
 
 
+/*
+ * Be a bit careful about struct padding, for example a glsl vec2 should be
+ * on an 8 byte offset.
+ */
 struct shader_globals {
     float frustum[4];
+    int screen_size[2];
+    float bottomleft_corner[2];
+    int canvas_corner[2];
     float canvas_pixels_to_meters;
     float time;
-    int screen_size[2];
-    unsigned int mins;
-    unsigned int secs;
-    unsigned int csecs;
     float zoom_pixels_to_meters;
+    unsigned int mins, secs, csecs;
 };
+const std::string SHADER_GLOBALS = R"(
+#version 410 core
+struct Globals {
+    vec4  frustum;
+    ivec2 screenSize;
+    vec2  bottomleft_corner;
+    ivec2 canvas_corner;
+    float PixelsToMeters;
+    float time;
+    float ZoomPixelsToMeters;
+    int   mins;
+    int   secs;
+    int   csecs;
+};
+layout(std140) uniform GlobalData {
+    Globals globals;
+};
+)";
 
 
 extern const std::string TimerGLSL;

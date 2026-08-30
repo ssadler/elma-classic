@@ -83,7 +83,6 @@ cached<picture> lgr_texture_cache::get_picture(int picture_id) {
 
     if (r->tex == 0) {
         auto picture = &Lgr->pictures[picture_id];
-        printf("get picture %s\n", picture->name);
         r->tex = upload_picture_texture(picture);
         r->obj = (void*)picture;
     }

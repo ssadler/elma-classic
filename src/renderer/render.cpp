@@ -280,6 +280,7 @@ void GameRenderer::render_view(bool player1, bool bottom_player, int left, int b
         if (!Single && FlagTag) {
             flagtag_time = player1 ? FlagTimeA : FlagTimeB;
         }
+        prerender_timers(BestTime, flagtag_time, GameViewWidth, GameViewHeight);
     }
 
     // Calculate frame of reference
@@ -493,8 +494,7 @@ void render_game(double time, driver& driv1, driver& driv2, camera& current_came
 
     fps::update();
 
-    //if (is_opengl_render()) { // (II++ / 1000) % 2 == 0) {
-    if ((II++ / 1000) % 2 == 0) {
+    if (is_opengl_render() && (II++ / 1000) % 2 == 0) {
         auto renderer = createOpenGLRenderer(time, driv1, driv2, current_camera, loop);
         renderer->render();
     } else {

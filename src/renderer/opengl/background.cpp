@@ -1,4 +1,8 @@
 
+/*
+ * Background is misnomer its fg
+ */
+
 #include "pic/lgr.h"
 #include "pic/surface.h"
 #include "renderer/canvas.h"
@@ -6,6 +10,8 @@
 #include "renderer/opengl.h"
 #include "renderer/opengl_gfx.h"
 #include <cstring>
+
+
 
 
 static Graphics* BG = nullptr;
@@ -16,18 +22,7 @@ static void init() {
         BG->add_input_floats(1, false);
         BG->vertex_array_binding_divisor = 1;
 
-        BG->set_vertex_shader(R"(
-        #version 410 core
-
-        layout(std140) uniform GlobalData {
-            vec4 uFrustum;
-            float PixelsToMeters;
-            float time;
-            ivec2 screenSize;
-            int mins;
-            int secs;
-            int csecs;
-        };
+        auto vert = SHADER_GLOBALS + R"(
         layout(location = 0) in float loc;
         uniform vec2 texSize;
 
@@ -38,36 +33,21 @@ static void init() {
             vec2(0,0), vec2(1,1), vec2(0,1)
         );
 
-        void main()
-        {
+        void main() {
             vec2 v = verts[gl_VertexID];
-            vec2 pos = uFrustum.xy * v + uFrustum.zw * (vec2(1.0)-v);
-
-            uv = pos / (texSize * PixelsToMeters);
-
-            vec2 p = (pos - uFrustum.xy) / (uFrustum.zw - uFrustum.xy);
-            gl_Position = vec4(-1.0 + p.x * 2.0, -1.0 + p.y * 2.0, 0.0, 1.0);
+            gl_Position = vec4(-1.0 + v.x * 2.0, -1.0 + v.y * 2.0, 0.0, 1.0);
+            uv = (v * vec2(globals.screenSize) + vec2(globals.canvas_corner)) / texSize;
         }
-        )");
+        )";
 
-        auto vert = std::string(R"(
-        #version 410 core
+        auto frag = SHADER_GLOBALS + R"(
         layout(std140) uniform Palette { vec4 palette[256]; };
-        layout(std140) uniform GlobalData {
-            vec4 uFrustum;
-            float PixelsToMeters;
-            float time;
-            ivec2 screenSize;
-            int mins;
-            int secs;
-            int csecs;
-        };
 
         in vec2 uv;
         uniform usampler2D tex;
         out vec4 FragColor;
 
-        )") + TimerGLSL + R"(
+        )" + TimerGLSL + R"(
 
         void main() {
             uint index = texture(tex, uv).r;
@@ -77,7 +57,8 @@ static void init() {
         }
         )";
 
-        BG->set_fragment_shader(vert.c_str());
+        BG->set_vertex_shader(vert.c_str());
+        BG->set_fragment_shader(frag.c_str());
 
         BG->compile();
         BG->bind_uniform_block(0, "Palette");
@@ -97,7 +78,7 @@ gl_lifecycle<> Background = {
         BG->set_texture(0, "tex", pic.tex);
         BG->uniform2f("texSize", pic.obj->pic->get_width(), pic.obj->pic->get_height());
     },
-    .render = [] {
+    .render = []() {
         BG->draw_instanced(0, 6, 1);
     }
 };

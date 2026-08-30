@@ -240,8 +240,6 @@ class canvas {
       int pic_x, pic_y, pic_id;
     };
     std::vector<canvas_export_span> export_spans();
-    int get_foreground_offset(vect2 corner);
-    int get_background_offset(vect2 corner);
 };
 
 extern canvas* CanvasBack;

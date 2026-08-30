@@ -1385,21 +1385,6 @@ void canvas::render(bool player1, pic8* pic, vect2 corner, int x1, int y1, int x
     DefaultForeground = nullptr;
     DefaultBackground = nullptr;
 }
-int canvas::get_foreground_offset(vect2 corner) {
-    // Convert corner frame of reference from meters to pixels
-    int view_bottom = 0;
-    int view_left = 0;
-    meters_to_pixels(corner, &view_left, &view_bottom);
-    return positive_modulo(view_left, Lgr->foreground_original_width);
-}
-int canvas::get_background_offset(vect2 corner) {
-    // Convert corner frame of reference from meters to pixels
-    int view_bottom = 0;
-    int view_left = 0;
-    meters_to_pixels(corner, &view_left, &view_bottom);
-    constexpr int PARALLAX = 2;
-    return positive_modulo(view_left / PARALLAX, Lgr->background_original_width);
-}
 
 void canvas::render_minimap(bool player1, pic8* pic, vect2 corner, int x1, int y1, int x2, int y2) {
     if (x1 >= x2 || y1 >= y2) {

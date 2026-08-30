@@ -1,5 +1,6 @@
 
 #include "platform/sdl/gl_renderer.h"
+#include "renderer/canvas.h"
 #include "renderer/render.h"
 #include "renderer/opengl.h"
 #include <cstring>
@@ -33,21 +34,19 @@ class OpenGLRenderer : public PicRenderer {
          */
         PicRenderer::subview(left, bottom, right, top);
 
-
         /*
-         * Update frustum
+         * Set render view
          */
 
-        auto pixels_to_meters = PixelsToMeters * GlZoom;
+        auto gl_p2m = PixelsToMeters * GlZoom;
         float adjusted_y = center.y;
 
         if (splitscreen) {
             // Bottom view is already correct placed because scissor doesnt change viewprt (just cuts it)
             // and bottomleft_corner is actually at the bottom, but top needs to be shifted up.
-            //
             if (bottom > 0) {
                 auto height_rel = 1.0 - (top-bottom) / float(SCREEN_HEIGHT);
-                adjusted_y -= SCREEN_HEIGHT * pixels_to_meters * height_rel;
+                adjusted_y -= SCREEN_HEIGHT * gl_p2m * height_rel;
             }
             glEnable(GL_SCISSOR_TEST);
             glScissor(left, bottom, right-left, top-bottom);
@@ -56,19 +55,32 @@ class OpenGLRenderer : public PicRenderer {
         }
 
 
-        auto quantize = [=](float f) { return std::floor(f / pixels_to_meters) * pixels_to_meters; };
+        auto quantize = [=](float f) { return std::floor(f / gl_p2m) * gl_p2m; };
 
-        Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * pixels_to_meters);
-        Globals.frustum[1] = quantize(adjusted_y - SCREEN_HEIGHT/2.0 * pixels_to_meters);
-        Globals.frustum[2] = Globals.frustum[0] + SCREEN_WIDTH * pixels_to_meters;
-        Globals.frustum[3] = Globals.frustum[1] + SCREEN_HEIGHT * pixels_to_meters;
+        Globals.frustum[0] = quantize(center.x - SCREEN_WIDTH/2.0 * gl_p2m);
+        Globals.frustum[1] = quantize(adjusted_y - SCREEN_HEIGHT/2.0 * gl_p2m);
+        Globals.frustum[2] = Globals.frustum[0] + SCREEN_WIDTH * gl_p2m;
+        Globals.frustum[3] = Globals.frustum[1] + SCREEN_HEIGHT * gl_p2m;
+
+        /*
+         * Update other shader globals
+         */
 
         Globals.screen_size[0] = SCREEN_WIDTH;
         Globals.screen_size[1] = SCREEN_HEIGHT;
 
+        Globals.bottomleft_corner[0] = bottomleft_corner.x;
+        Globals.bottomleft_corner[1] = bottomleft_corner.y;
+
         Globals.canvas_pixels_to_meters = PixelsToMeters;
-        Globals.zoom_pixels_to_meters = pixels_to_meters;
+        Globals.zoom_pixels_to_meters = gl_p2m;
         Globals.time = time;
+
+        CanvasBack->meters_to_pixels(bottomleft_corner, &Globals.canvas_corner[0], &Globals.canvas_corner[1]);
+
+        /*
+         * Push shader globals
+         */
 
         glBindBuffer(GL_UNIFORM_BUFFER, GlobalsVBO);
         glBufferData(GL_UNIFORM_BUFFER, sizeof(shader_globals), &Globals, GL_DYNAMIC_DRAW);
@@ -155,12 +167,12 @@ class OpenGLRenderer : public PicRenderer {
         GL_DEBUG
         Background.render();
         GL_DEBUG
-        Canvas.render(true, bottomleft_corner);
+        Canvas.render(true);
         GL_DEBUG
     }
 
     void render_front(bool) override {
-        Canvas.render(false, bottomleft_corner);
+        Canvas.render(false);
         GL_DEBUG
     }
 
